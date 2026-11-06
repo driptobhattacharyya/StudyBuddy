@@ -56,7 +56,6 @@ kubernetes==30.1.0
 langchain==0.2.10
 langchain-chroma==0.1.2
 langchain-community==0.2.9
-langchain_google_genai
 langchain-core==0.2.22
 langchain-huggingface==0.0.3
 langchain-text-splitters==0.2.2
@@ -128,8 +127,10 @@ tenacity==8.5.0
 threadpoolctl==3.5.0
 tokenizers==0.19.1
 tomli==2.0.1
+torch==2.3.1
 tqdm==4.66.4
 transformers==4.42.4
+triton==2.3.1
 typer==0.12.3
 typing-inspect==0.9.0
 typing_extensions==4.12.2
@@ -137,6 +138,7 @@ tzlocal==5.2
 uritemplate==4.1.1
 urllib3==2.2.2
 uvicorn==0.30.1
+uvloop==0.19.0
 watchfiles==0.22.0
 websocket-client==1.8.0
 websockets==12.0

@@ -96,49 +96,47 @@ async def submit_answers(
     current_user: Annotated[User, Security(get_current_active_user, scopes=["user"])],
     submissions: List[AssignmentSubmissionForm]
 ):
-    assignment_id = dict(submissions[0])['assgn_id']
-    print('At this point_2')
-    assignment = db.assignment.find_one({"_id": ObjectId(assignment_id)})
-    print('At this point_3')
-    coding_assignment = db.coding_assignment.find_one({"_id": ObjectId(assignment_id)})
-    print('At this point_4')
+    try:
+        assignment_id = dict(submissions[0])['assgn_id']
+        assignment = db.assignment.find_one({"_id": ObjectId(assignment_id)})
+        coding_assignment = db.coding_assignment.find_one({"_id": ObjectId(assignment_id)})
 
-    print(assignment, coding_assignment)
+        assgn = assignment if assignment else coding_assignment
 
-    assgn = assignment if assignment else coding_assignment
+        submission_dicts = [
+            {
+                **submission.dict(),               
+                "assgn_id": ObjectId(submission.assgn_id),
+                "user_id": current_user.user_id  
+            }
+            
+            for submission in  submissions
+        ]
 
-    submission_dicts = [
-        {
-            **submission.dict(),               
-            "assgn_id": ObjectId(submission.assgn_id),
-            "user_id": current_user.user_id  
-        }
-        
-        for submission in  submissions
-    ]
-    print('At this point_1')
+        db.last_submission.update_one({ 
+            "user_id": current_user.user_id,
+            "course_id": assgn["course_id"],
+            "week": assgn["week"],
+            "assgn_type": assgn["assgn_type"]}, { "$set": {
+                                        "user_id": current_user.user_id,
+                                        "course_id": assgn["course_id"],
+                                        "week": assgn["week"],
+                                        "assgn_type": assgn["assgn_type"],
+                                        "last_submission": datetime.now() }
+        }, upsert=True)
 
-    db.last_submission.update_one({ 
-        "user_id": current_user.user_id,
-        "course_id": assgn["course_id"],
-        "week": assgn["week"],
-        "assgn_type": assgn["assgn_type"]}, { "$set": {
-                                    "user_id": current_user.user_id,
-                                    "course_id": assgn["course_id"],
-                                    "week": assgn["week"],
-                                    "assgn_type": assgn["assgn_type"],
-                                    "last_submission": datetime.now() }
-    }, upsert=True)
+        for submission in submission_dicts:
+            db.submission.update_one(
+                { "assgn_id": ObjectId(submission["assgn_id"]),
+                "user_id": current_user.user_id }, 
+                { "$set": submission }, 
+                upsert=True
+                )
+            
 
-    print('At this point')
-
-
-    submit = db.submission.insert_many(submission_dicts)
-
-    if submit.acknowledged:
-        return {"message": "success", "db_entry_ids": [str(id) for id in submit.inserted_ids]}
-    
-    raise HTTPException(status_code=500, detail="An error occurred while submitting the answers.")
+        return {"message": "Assignment_submitted", "submission_time": datetime.now()}
+    except:   
+        raise HTTPException(status_code=500, detail="An error occurred while submitting the answers.")
    
 
 @user.get('/get_marks', responses=responses)
