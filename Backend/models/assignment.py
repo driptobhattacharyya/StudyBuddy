@@ -1,10 +1,15 @@
-from fastapi import HTTPException
-from pydantic import BaseModel, field_validator, Field, model_validator
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, List, Union, Dict
-from bson import ObjectId
-from datetime import datetime
-from database.db import db
+from typing import Annotated, List, Optional, Union
+
+from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, field_validator, model_validator
+
+
+def _norm_qtype(v):
+    if isinstance(v, str) and v.lower() in ("numerical", "numeric"):
+        return "Numeric"
+    return v
+
 
 class QuestionType(str, Enum):
     MSQ = "MSQ"
@@ -12,6 +17,9 @@ class QuestionType(str, Enum):
     Numeric = "Numeric"
     String = "String"
     Float = "Float"
+
+
+QType = Annotated[QuestionType, BeforeValidator(_norm_qtype)]
 
 
 class AssignmentType(str, Enum):
@@ -22,185 +30,109 @@ class AssignmentType(str, Enum):
     GrPA = "GrPA"
 
 
-class Assignment(BaseModel):
-    question: str
-    q_type: QuestionType
-    options: List[Union[int, str, float]]
-    answers: List[Union[int, str, float]]
-    assgn_type: AssignmentType
-    course_id: str
-    week: int = Field(ge=0, le=12)
-    evaluated: bool | None = False
-    deadline: datetime = Field(..., description="Deadline in ISO format")
+GENERAL_TYPES = {"AQ", "PA", "GA"}
+CODING_TYPES = {"PPA", "GrPA"}
 
-    @field_validator('course_id')
-    def validate_course_id(cls, c_id):
-        course = db.course.find_one({"course_id": c_id})
-        if course is None:
-            raise ValueError("Invalid Course_ID")
-        return c_id
-    
-    @field_validator('assgn_type')
-    def validate_assgn_type(cls, assgn_type):
-        if assgn_type not in ["AQ", "PA", "GA"]:
-            raise ValueError("Invalid Assignment Type")
-        return assgn_type
-    
+
+def _utc(dt: datetime) -> datetime:
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+
+Deadline = Annotated[datetime, AfterValidator(_utc), Field(description="Deadline in ISO format (UTC if no zone given)")]
+Scalar = Union[int, float, str]
+
+
+class AssignmentBase(BaseModel):
+    question: str = Field(min_length=1, max_length=5000)
+    q_type: QType
+    options: List[Scalar] = Field(default_factory=list)
+    answers: List[Scalar] = Field(default_factory=list)
+    assgn_type: AssignmentType
+    week: int = Field(ge=0, le=12)
+    deadline: Deadline
+
+    @field_validator("assgn_type")
+    @classmethod
+    def _general_type(cls, v):
+        if v.value not in GENERAL_TYPES:
+            raise ValueError("assgn_type must be one of AQ, PA, GA")
+        return v
+
+    @model_validator(mode="after")
+    def _check_choices(self):
+        if self.q_type in (QuestionType.MCQ, QuestionType.MSQ):
+            if len(self.options) < 2:
+                raise ValueError("Choice questions need at least two options")
+            if not self.answers:
+                raise ValueError("At least one correct answer is required")
+            if self.q_type == QuestionType.MCQ and len(self.answers) != 1:
+                raise ValueError("MCQ questions must have exactly one correct answer")
+            missing = [a for a in self.answers if a not in self.options]
+            if missing:
+                raise ValueError("Every answer must be one of the options")
+        return self
+
+
+class Assignment(AssignmentBase):
+    course_id: str
+    evaluated: Optional[bool] = False
+
+
+class AssignmentUpdate(AssignmentBase):
+    pass
+
+
 class CodeLanguage(str, Enum):
     python = "python"
-    sql = "sql"
     java = "java"
     js = "js"
+    javascript = "javascript"
 
 
-class ProgrammingAssignment(BaseModel):
-    question: str
+class TestCase(BaseModel):
+    input: str
+    output: str
+
+
+class ProgrammingBase(BaseModel):
+    question: str = Field(min_length=1, max_length=10000)
     language: CodeLanguage
-    public_testcase: List[dict]
-    private_testcase: List[dict]
+    public_testcase: List[TestCase] = Field(min_length=1)
+    private_testcase: List[TestCase] = Field(min_length=1)
     assgn_type: AssignmentType
+    week: int = Field(ge=0, le=12)
+    deadline: Deadline
+
+    @field_validator("assgn_type")
+    @classmethod
+    def _coding_type(cls, v):
+        if v.value not in CODING_TYPES:
+            raise ValueError("assgn_type must be one of PPA, GrPA")
+        return v
+
+
+
+class ProgrammingAssignment(ProgrammingBase):
     course_id: str
-    week: int = Field(ge=0, le=12)
-    evaluated: bool | None = False
-    deadline: datetime = Field(description="Deadline in ISO format")
-
-    @model_validator(mode='before')
-    def validate_testcases(cls, values):
-        public_tc = values.get('public_testcase')
-        private_tc = values.get('private_testcase')
-        
-        # Validate each test case
-        for tc in public_tc + private_tc:
-            if not isinstance(tc, dict):
-                raise ValueError("Each test case should be a dictionary")
-            elif set(tc.keys()) != {'input', 'output'}:
-                raise ValueError("Each test case should only have 'input' and 'output' keys")
-            elif not isinstance(tc['input'], str) or not isinstance(tc['output'], str):
-                raise ValueError("Both 'input' and 'output' should be str")
-        return values
-
-    @field_validator('course_id')
-    def validate_course_id(cls, c_id):
-        course = db.course.find_one({"course_id": c_id})
-        if course is None:
-            raise ValueError("Invalid Course_ID")
-        return c_id
-    
-    @field_validator('assgn_type')
-    def validate_assgn_type(cls, assgn_type):
-        if assgn_type not in ["PPA", "GrPA"]:
-            raise ValueError("Invalid Assignment Type")
-        return assgn_type
+    evaluated: Optional[bool] = False
 
 
-class ProgrammingAssignmentUpdate(BaseModel):
-    question: str
-    language: CodeLanguage
-    public_testcase: List[dict]
-    private_testcase: List[dict]
-    assgn_type: AssignmentType
-    week: int = Field(ge=0, le=12)
-    deadline: datetime = Field(description="Deadline in ISO format")
+class ProgrammingAssignmentUpdate(ProgrammingBase):
+    pass
 
-    @model_validator(mode='before')
-    def validate_testcases(cls, values):
-        public_tc = values.get('public_testcase')
-        private_tc = values.get('private_testcase')
-        
-        if (public_tc!=None) or (private_tc!=None):
-            # Validate each test case
-            for tc in public_tc + private_tc:
-                if not isinstance(tc, dict):
-                    raise ValueError("Each test case should be a dictionary")
-                elif set(tc.keys()) != {'input', 'output'}:
-                    raise ValueError("Each test case should only have 'input' and 'output' keys")
-                elif not isinstance(tc['input'], str) or not isinstance(tc['output'], str):
-                    raise ValueError("Both 'input' and 'output' should be lists")
-        return values
-    
-    @field_validator('assgn_type')
-    def validate_assgn_type(cls, assgn_type):
-        if assgn_type not in ["PPA", "GrPA"]:
-            raise ValueError("Invalid Assignment Type")
-        return assgn_type
 
 class AssignmentSubmissionForm(BaseModel):
     assgn_id: str = Field(min_length=24, max_length=24)
-    user_id: Optional[str] = None
-    answer: list
+    user_id: Optional[str] = None  # ignored: the authenticated user is always used
+    answer: list = Field(max_length=100)
 
-    @field_validator('assgn_id')
-    def validate_assgn_id(cls, assgn_id):
-        try:
-            ObjectId(assgn_id)
-        except Exception:
-            raise ValueError("Invalid Assignment_ID format")
-        
-        assgn = db.assignment.find_one({"_id": ObjectId(assgn_id)})
-        coding_assgn = db.coding_assignment.find_one({"_id": ObjectId(assgn_id)})
-        if (assgn is None) and (coding_assgn is None):
-            raise ValueError("Invalid Assignment_ID")
-        return assgn_id
-    
-    @field_validator('user_id')
-    def validate_user_id(cls, user_id):
-        user = db.user.find_one({"user_id": user_id})
-        if user is None:
-            raise ValueError("Invalid User_ID")
-        return user_id
 
 class CodingSubmission(BaseModel):
-    assgn_id: str
-    code: str
-
-    @field_validator('assgn_id')
-    def validate_assgn_id(cls, assgn_id):
-        try:
-            assgn = db.coding_assignment.find_one({"_id": ObjectId(assgn_id)})
-            if assgn is None:
-                raise ValueError("Invalid Assignment_ID")
-            return assgn_id
-        except:
-            raise HTTPException(status_code=422, detail="Invalid Assignment_ID")
-
-class Marks(BaseModel):
-    user_id: str
     assgn_id: str = Field(min_length=24, max_length=24)
-    marks: int = Field(ge=0, le=100)
-
-    @field_validator('assgn_id')
-    def validate_assgn_id(cls, assgn_id):
-        assgn = db.assignment.find_one({"_id": ObjectId(assgn_id)})
-        coding_assgn = db.coding_assignment.find_one({"_id": ObjectId(assgn_id)})
-        if (assgn is None) and (coding_assgn is None):
-            raise ValueError("Invalid Assignment_ID")
-        return assgn_id
-    
-    @field_validator('user_id')
-    def validate_user_id(cls, user_id):
-        user = db.user.find_one({"user_id": user_id})
-        if user is None:
-            raise ValueError("Invalid User_ID")
-        return user_id
-
-class AssignmentUpdate(BaseModel):
-    question: str
-    q_type: QuestionType
-    options: List[Union[int, str, float]]
-    answers: List[Union[int, str, float]]
-    assgn_type: AssignmentType
-    week: int = Field(ge=0, le=12)
-    deadline: datetime = Field(description="Deadline in ISO format")
+    code: str = Field(description="Base64 encoded source code", max_length=200_000)
 
 
 class LastSubmission(BaseModel):
     course_id: str
     week: int = Field(ge=1, le=12)
     assgn_type: AssignmentType
-
-    @field_validator('course_id')
-    def validate_course_id(cls, c_id):
-        course = db.course.find_one({"course_id": c_id})
-        if course is None:
-            raise ValueError("Invalid Course_ID")
-        return c_id

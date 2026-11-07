@@ -1,0 +1,8 @@
+// Import services as namespaces:  import { courses, notes } from '@/lib/services'
+export * as auth from './auth'
+export * as courses from './courses'
+export * as notes from './notes'
+export * as assignments from './assignments'
+export * as coding from './coding'
+export * as flashcards from './flashcards'
+export * as ai from './ai'

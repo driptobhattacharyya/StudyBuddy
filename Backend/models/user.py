@@ -1,17 +1,13 @@
-from pydantic import (
-    BaseModel,
-    validate_email,
-    field_validator,
-    EmailStr,
-)
-
-from uuid import UUID
-
-from typing import List, Optional
 from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, EmailStr, Field
+
 
 class Role(str, Enum):
     student = "student"
+    instructor = "instructor"
+    # legacy values that may exist in older databases
     admin = "admin"
     user = "user"
 
@@ -19,21 +15,15 @@ class Role(str, Enum):
 class User(BaseModel):
     user_id: str
     email: EmailStr
-    name: str | None = None
+    name: Optional[str] = None
+    picture: Optional[str] = None
     disabled: Optional[bool] = False
-    roles: List[Role]
-    courses: Optional[List[str]] | None = []  # validate later
+    roles: List[str] = Field(default_factory=lambda: ["student"])
+    courses: Optional[List[str]] = Field(default_factory=list)
 
-    @field_validator("email")
-    def validate_email_format(cls, email):
-        if not validate_email(email):
-            raise ValueError("Invalid email format")
-        return email
-    
-    @field_validator("user_id")
-    def validate_user_id(cls, user_id):
-        try:
-            UUID(user_id)
-        except:
-            raise ValueError("Invalid User_ID")
-        return user_id
+    # Not stored: resolved at request time from DB roles + INSTRUCTOR_EMAILS.
+    role: str = "student"
+
+    @property
+    def is_instructor(self) -> bool:
+        return self.role == Role.instructor.value

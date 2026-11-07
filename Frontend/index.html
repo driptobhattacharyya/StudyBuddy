@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/logo192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#4f46e5" />
+    <title>Study Buddy - AI-assisted learning platform</title>
+    <meta name="description" content="Study Buddy is an AI-assisted LMS: course notes with AI summaries, practice questions, step-by-step hints, a built-in code runner, flashcards and a chat that answers from your course material." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Study Buddy" />
+    <meta property="og:title" content="Study Buddy - AI-assisted learning platform" />
+    <meta property="og:description" content="Summaries, practice questions, hints, a code runner, flashcards and course chat - all grounded in your course material." />
+    <meta property="og:image" content="/logo512.png" />
+    <meta name="twitter:card" content="summary" />
+    <script>
+      // Apply the saved/system theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var t = localStorage.getItem('sb_theme');
+          var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

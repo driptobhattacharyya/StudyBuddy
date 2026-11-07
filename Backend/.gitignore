@@ -1,8 +1,8 @@
 .env
-my_env
+venv/
+my_env/
 dummy*
-**/__pycache__/*
-chroma_db
-.vscode
-.devcontainer
-.pytest_cache
+__pycache__/
+*.pyc
+.pytest_cache/
+.vscode/
