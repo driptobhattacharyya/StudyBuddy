@@ -37,3 +37,13 @@ export const getMarks = (courseId) => api.get('/user/get_marks', { params: { cou
 /** GET /user/last_submission?course_id=&week=&assgn_type= */
 export const getLastSubmission = (courseId, week, assgnType) =>
   api.get('/user/last_submission', { params: { course_id: courseId, week, assgn_type: assgnType } }).then((r) => r.data)
+
+// ---- Grading / insights ----------------------------------------------------------------------
+/** GET /course/{course_id}/marks (instructor) -> gradebook: marks of all students in the course */
+export const getGradebook = (courseId) => api.get(`/course/${courseId}/marks`).then((r) => r.data)
+
+/** GET /user/insights/{course_id} -> the caller's weak topics / per-week performance */
+export const getMyInsights = (courseId) => api.get(`/user/insights/${courseId}`).then((r) => r.data)
+
+/** GET /course/{course_id}/insights (instructor) -> class averages per week + students at risk */
+export const getCourseInsights = (courseId) => api.get(`/course/${courseId}/insights`).then((r) => r.data)

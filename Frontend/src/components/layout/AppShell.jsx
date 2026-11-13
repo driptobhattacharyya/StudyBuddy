@@ -14,6 +14,7 @@ import { SHELLS } from './navConfig'
 import { CourseSwitcher } from './CourseSwitcher'
 import { ThemeToggle } from './ThemeToggle'
 import { UserMenu } from './UserMenu'
+import { DemoRoleSwitcher } from './DemoRoleSwitcher'
 
 const COLLAPSE_KEY = 'sb_sidebar_collapsed'
 
@@ -174,8 +175,9 @@ export function AppShell({ shell }) {
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setDrawer(true)} aria-label="Open navigation">
               <Menu className="size-5" />
             </Button>
-            <CourseSwitcher base={config.base} />
+            {!config.noCourses && <CourseSwitcher base={config.base} />}
             <div className="flex-1" />
+            <DemoRoleSwitcher />
             <ThemeToggle />
             <UserMenu />
           </header>

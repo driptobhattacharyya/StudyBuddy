@@ -11,7 +11,7 @@ const AuthContext = createContext(null)
 const LEGACY_KEYS = ['token', 'user_type', 'user_id', 'course_id']
 export const LAST_COURSE_KEY = 'sb_last_course'
 
-export const homeForRole = (role) => (role === 'instructor' ? '/instructor' : '/app')
+export const homeForRole = (role) => (role === 'admin' ? '/admin' : role === 'instructor' ? '/instructor' : '/app')
 
 /**
  * status: 'loading' (checking a stored token) | 'authenticated' | 'anonymous'
@@ -74,7 +74,7 @@ export function AuthProvider({ children }) {
     [refreshUser],
   )
 
-  /** Demo sign-in (only works when /auth/config reports demo_mode). role: 'student' | 'instructor' */
+  /** Demo sign-in (only works when /auth/config reports demo_mode). role: 'student' | 'instructor' | 'admin' */
   const loginAsDemo = useCallback(
     async (role) => {
       const res = await authService.demoLogin(role)

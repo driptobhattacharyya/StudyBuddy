@@ -6,6 +6,7 @@ import { Markdown } from './Markdown'
 import { extractCitations } from './citations'
 import { Avatar } from '@/components/ui/Avatar'
 import { Tooltip } from '@/components/ui/Tooltip'
+import { UnderTheHood } from './UnderTheHood'
 import { EmptyState } from '@/components/ui/EmptyState'
 
 let msgId = 0
@@ -37,7 +38,10 @@ function CopyButton({ text }) {
 function Bubble({ message, live, onRetry, userName, userPicture }) {
   const isUser = message.role === 'user'
   const content = live ?? message.content
-  const { body, citations } = isUser || live != null ? { body: content, citations: [] } : extractCitations(content)
+  const extracted = isUser || live != null ? { body: content, citations: [] } : extractCitations(content)
+  const body = extracted.body
+  const metaCitations = (message.meta?.citations ?? []).map((c) => (typeof c === 'string' ? c : `${c.week != null ? `Week ${c.week}: ` : ''}${c.title}`))
+  const citations = metaCitations.length ? metaCitations : extracted.citations
   const streaming = message.status === 'streaming'
 
   if (isUser) {
@@ -91,6 +95,7 @@ function Bubble({ message, live, onRetry, userName, userPicture }) {
         {!streaming && (
           <div className="mt-1 flex items-center gap-0.5 pl-1">
             {body && <CopyButton text={body} />}
+            <UnderTheHood traceId={message.meta?.trace_id} />
             {onRetry && (
               <Tooltip content="Regenerate">
                 <button aria-label="Retry" onClick={onRetry} className="rounded-md p-1.5 text-subtle transition-colors hover:bg-surface-2 hover:text-fg">
@@ -146,7 +151,7 @@ export function ChatPanel({
       const assistant = { id: newId(), role: 'assistant', content: '', status: 'streaming' }
       setMessages([...history, { id: newId(), role: 'user', content: q }, assistant])
       const res = await send(buildPayload(q, history))
-      patchLast({ content: res.text, status: res.status, error: res.error })
+      patchLast({ content: res.text, status: res.status, error: res.error, meta: res.meta })
     },
     [buildPayload, isStreaming, patchLast, send],
   )

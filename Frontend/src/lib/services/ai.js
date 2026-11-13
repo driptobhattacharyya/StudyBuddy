@@ -33,3 +33,23 @@ export const askCourse = ({ query, courseId, week = 0 }) =>
 /** Prompt used by the code editor's "Hint" button over WS_ASSISTANT (hints, never the full answer). */
 export const buildHintQuery = ({ question, code }) =>
   `You are a programming tutor. Give a short hint that nudges the student toward the solution. Never reveal the full or exact answer.\n\nQuestion:\n${question}\n\nStudent code:\n${code || '(nothing yet)'}`
+
+// ---- AI observability -------------------------------------------------------------------------
+/**
+ * GET /ai/trace/{trace_id} -> { _id, user, feature, provider, model, system_prompt, prompt,
+ *   retrieved: [{title, week, score, snippet}], tokens_in, tokens_out, latency_ms, status, error?, created_at }
+ * Owner or admin only. REST AI responses carry `trace_id`; WS streams deliver it in the [[META]] frame.
+ */
+export const getTrace = (traceId) => api.get(`/ai/trace/${traceId}`).then((r) => r.data)
+
+/**
+ * Instructor: POST /ai/generate_from_material { material_id? , text?, course_id? }
+ * -> { trace_id, summary, quiz: [{question, options, answer}], flashcards: [{title, content}] } (a draft to edit & publish)
+ */
+export const generateFromMaterial = (payload) => api.post('/ai/generate_from_material', payload).then((r) => r.data)
+
+/**
+ * Student: POST /coding_assignment/{id}/feedback { code } -> { trace_id, feedback (markdown: correctness, style, complexity) }
+ */
+export const getCodeFeedback = (assgnId, code) =>
+  api.post(`/coding_assignment/${assgnId}/feedback`, { code }).then((r) => r.data)

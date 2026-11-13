@@ -33,7 +33,7 @@ export function CourseSwitcher({ base }) {
         >
           <GraduationCap className="size-4 shrink-0 text-brand-500" aria-hidden="true" />
           <span className="truncate font-medium">
-            {currentCourse ? currentCourse.course_name : courseId ? courseId : 'Select a course'}
+            {currentCourse ? currentCourse.course_name : courseId ? courseId : 'Courses'}
           </span>
           <ChevronsUpDown className="size-3.5 shrink-0 text-subtle" aria-hidden="true" />
         </button>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { GraduationCap, Presentation } from 'lucide-react'
+import { GraduationCap, Presentation, ShieldCheck } from 'lucide-react'
 import { homeForRole, useAuth } from '@/context/AuthContext'
 import { googleLoginUrl } from '@/lib/services/auth'
 import { getErrorMessage } from '@/lib/api'
@@ -55,6 +55,10 @@ export function AuthActions({ size = 'lg', stacked = false, className, showGoogl
           <Button size={size} variant="secondary" loading={pending === 'instructor'} disabled={!!pending} onClick={() => tryDemo('instructor')}>
             <Presentation className="size-5" aria-hidden="true" />
             Try as instructor
+          </Button>
+          <Button size={size} variant="secondary" loading={pending === 'admin'} disabled={!!pending} onClick={() => tryDemo('admin')}>
+            <ShieldCheck className="size-5" aria-hidden="true" />
+            Try as admin
           </Button>
         </>
       )}

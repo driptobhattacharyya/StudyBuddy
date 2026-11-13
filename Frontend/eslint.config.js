@@ -27,6 +27,11 @@ export default [
   {
     files: ['**/*.{js,jsx}'],
     ...reactHooks.configs.flat.recommended,
+    rules: {
+      ...reactHooks.configs.flat.recommended.rules,
+      // Kicking off a fetch from an effect (which sets loading state) is the accepted pattern here.
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
   {
     files: ['src/**/*.{js,jsx}'],
