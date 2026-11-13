@@ -1,120 +1,119 @@
-from fastapi import FastAPI, BackgroundTasks, WebSocket
-from fastapi.responses import FileResponse
+"""Study Buddy API - FastAPI application entry point."""
+import logging
+import time
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from routes.user import user
-from routes.course import course
-from routes.notes import notes
-from routes.course_material import course_material
-from routes.coding_assignments import coding_assignment
-from routes.flashcard import fc
-from routes.summarize import summarizer
+from fastapi.responses import JSONResponse
+
+from ai.errors import AIError, to_http
+from core.config import get_settings
+from core.logging import configure_logging
+from database.db import ensure_indexes
+from routes.admin import admin
+from routes.ai import ai
+from routes.ai_ws import ws_router
 from routes.assignment import assgn
-from routes.question_answer import question_answer
-from routes.generate_assignment_questions import assignment_question_answer
-
-from utils.security import auth
+from routes.auth import auth, oauth
+from routes.coding_assignments import coding_assignment
+from routes.course import course
+from routes.course_material import course_material
+from routes.flashcard import fc
+from routes.notes import notes
+from routes.user import user
 from utils.response import responses
-from utils.extra import tags_metadata
-from utils.grading import grade_assignment
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
-import asyncio
-from asyncio import sleep
-from ai.gemini import generate_chunks
-from threading import Thread
-from ai.format_query import format_query
+
+log = logging.getLogger("studybuddy")
+
+DESCRIPTION = """
+An AI-assisted learning management system: courses, weekly notes, graded and practice assignments
+(MCQ / MSQ / numeric / coding), flashcards, and a Gemini/OpenRouter powered study buddy with
+retrieval-augmented chat over course material.
+
+Roles: **student**, **instructor**, **admin**. Authenticate with `Authorization: Bearer <jwt>`.
+"""
+
+TAGS = [
+    {"name": "Auth", "description": "Google sign-in, demo logins, current user"},
+    {"name": "User", "description": "Profile, submissions, marks, insights"},
+    {"name": "Course", "description": "Courses and course content"},
+    {"name": "Course Material", "description": "Weekly material (instructor managed)"},
+    {"name": "Notes", "description": "Instructor notes"},
+    {"name": "Assignment", "description": "MCQ / MSQ / numeric questions"},
+    {"name": "Coding Assignment", "description": "Coding questions run in a sandbox"},
+    {"name": "Flashcard", "description": "Personal flashcards"},
+    {"name": "AI", "description": "Summaries, question generation, hints, traces"},
+    {"name": "Admin", "description": "User management and AI usage"},
+]
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    ensure_indexes()
+    if settings.seed_demo_on_startup:
+        try:
+            from scripts.seed_demo import seed
 
-app = FastAPI(
-    title="Study Buddy",
-    summary="Description of the app", 
-    description="Description from the description",
-    version="1.0.0",
-    openapi_tags=tags_metadata
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows these methods
-    allow_headers=["*"],  # Allows all headers
-)
-
-# Adding a router
-app.include_router(user)
-app.include_router(auth)
-app.include_router(course)
-app.include_router(course_material)
-app.include_router(fc)
-app.include_router(question_answer)
-app.include_router(assignment_question_answer)
-app.include_router(summarizer)
-app.include_router(assgn)
-app.include_router(coding_assignment)
-app.include_router(notes)
-
-async def send_res(websocket: WebSocket, streamer):
-    last_send = 0
-    while True:
-        await sleep(0.5)
-        s = len(streamer.queue)
-        if s>last_send:
-            await websocket.send_text(streamer.queue[last_send: s])
-        elif not streamer.has_next:
-            print(streamer.queue)
-            await websocket.close()
-            break
-        last_send = s
-
-@app.websocket("/generate")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    request = await websocket.receive_json()
-    if request.get('query') is None:
-        websocket.close()
-        return
-    await generate_chunks(request.get('query'), websocket)
-    await websocket.close()
-
-@app.websocket("/search_generate")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    request = await websocket.receive_json()
-    if request.get('query') is None or request.get('course_id') is None or request.get('week') is None:
-        websocket.close()
-        return
-    
-    query = format_query(request.get('query'), request.get('week'), request.get('course_id'))
-    await generate_chunks(query, websocket)
-    await websocket.close()
-
-# Mounting Static folder
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Favicon of the app
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    return FileResponse("static/favicon.ico")
-
-# endpoint
-@app.get('/', description="Home page", tags=["Home"], responses=responses)
-async def home():
-    return "Hello from Home page"
-
-scheduler = AsyncIOScheduler()
+            log.info("Seeding demo data: %s", seed())
+        except Exception:  # noqa: BLE001
+            log.exception("Demo seeding failed")
+    log.info("Study Buddy API started (demo_mode=%s, ai_provider=%s, code_runner=%s)",
+             settings.demo_mode, settings.ai_provider, settings.code_runner)
+    yield
 
 
-@app.on_event("startup")
-async def startup_event():
-    print("App Started")
-    scheduler.add_job(grade_assignment, IntervalTrigger(minutes=1))
-    scheduler.start()
-    return {"message": "Scheduler started!"}
+def create_app() -> FastAPI:
+    settings = get_settings()
+    app = FastAPI(title=settings.app_name, description=DESCRIPTION, version="2.0.0",
+                  openapi_tags=TAGS, lifespan=lifespan)
 
-if __name__ == '__main__':
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=False,  # auth uses bearer tokens, not cookies
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @app.middleware("http")
+    async def access_log(request: Request, call_next):
+        start = time.monotonic()
+        response = await call_next(request)
+        log.info("%s %s -> %s (%d ms)", request.method, request.url.path, response.status_code,
+                 (time.monotonic() - start) * 1000)
+        return response
+
+    @app.exception_handler(AIError)
+    async def ai_error_handler(request: Request, exc: AIError):
+        http = to_http(exc)
+        return JSONResponse(status_code=http.status_code, content={"detail": http.detail})
+
+    @app.exception_handler(Exception)
+    async def unhandled(request: Request, exc: Exception):
+        log.exception("Unhandled error on %s %s", request.method, request.url.path)
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+    for router in (auth, oauth, user, course, course_material, notes, assgn, coding_assignment, fc, ai,
+                   admin, ws_router):
+        app.include_router(router)
+
+    @app.get("/", tags=["Home"], responses=responses)
+    def home():
+        return {"name": settings.app_name, "docs": "/docs", "status": "ok"}
+
+    @app.get("/health", tags=["Home"])
+    def health():
+        return {"status": "ok"}
+
+    return app
+
+
+app = create_app()
+
+if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app="main:app", host='0.0.0.0', port=8000, reload=True)
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

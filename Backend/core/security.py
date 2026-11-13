@@ -19,9 +19,12 @@ log = logging.getLogger(__name__)
 
 STUDENT = "student"
 INSTRUCTOR = "instructor"
+ADMIN = "admin"
+ROLES = (STUDENT, INSTRUCTOR, ADMIN)
 DEMO_EMAILS = {
     STUDENT: "demo.student@studybuddy.dev",
     INSTRUCTOR: "demo.instructor@studybuddy.dev",
+    ADMIN: "demo.admin@studybuddy.dev",
 }
 _DEMO_NAMESPACE = uuid.UUID("6f1c2f0e-0b0e-4f59-9a54-3b3b0e5a5b11")
 
@@ -30,14 +33,15 @@ bearer_auth = HTTPBearer(scheme_name="BearerAuth", auto_error=False)
 
 # ---------------------------------------------------------------- roles ----
 def resolve_role(email: str, roles: list[str] | None) -> str:
-    """Instructor if listed in INSTRUCTOR_EMAILS or stored with an admin/instructor role."""
+    """admin > instructor > student. Env lists and stored roles are both honoured."""
     settings = get_settings()
-    if email.lower() in settings.instructor_emails_set:
+    e = email.lower()
+    if e in settings.admin_emails_set or (roles and "admin" in roles):
+        return ADMIN
+    if e in settings.instructor_emails_set or (roles and "instructor" in roles):
         return INSTRUCTOR
-    if settings.demo_mode and email.lower() == DEMO_EMAILS[INSTRUCTOR]:
-        return INSTRUCTOR
-    if roles and any(r in ("admin", "instructor") for r in roles):
-        return INSTRUCTOR
+    if settings.demo_mode and e in DEMO_EMAILS.values():
+        return next(r for r, m in DEMO_EMAILS.items() if m == e)
     return STUDENT
 
 
@@ -94,10 +98,8 @@ def demo_user_id(role: str) -> str:
 def ensure_demo_user(role: str) -> User:
     """Create (if missing) the demo user and enrol them in every course."""
     email = DEMO_EMAILS[role]
-    name = "Demo Instructor" if role == INSTRUCTOR else "Demo Student"
-    user = create_user(
-        email, name, roles=["admin"] if role == INSTRUCTOR else [STUDENT], user_id=demo_user_id(role)
-    )
+    name = f"Demo {role.title()}"
+    user = create_user(email, name, roles=[role], user_id=demo_user_id(role))
     if not user.courses:
         ids = [c["course_id"] for c in db.course.find({}, {"course_id": 1})]
         if ids:
@@ -129,7 +131,7 @@ def user_from_token(token: str) -> User:
     return user
 
 
-async def get_current_active_user(
+def get_current_active_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_auth)],
 ) -> User:
     if credentials is None or not credentials.credentials:
@@ -140,13 +142,13 @@ async def get_current_active_user(
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
 
 
-async def require_instructor(user: CurrentUser) -> User:
-    if user.role != INSTRUCTOR:
+def require_instructor(user: CurrentUser) -> User:
+    if user.role not in (INSTRUCTOR, ADMIN):
         raise HTTPException(status_code=403, detail="Instructor role required")
     return user
 
 
-async def require_student(user: CurrentUser) -> User:
+def require_student(user: CurrentUser) -> User:
     if user.role != STUDENT:
         raise HTTPException(status_code=403, detail="Student role required")
     return user
@@ -154,3 +156,12 @@ async def require_student(user: CurrentUser) -> User:
 
 InstructorUser = Annotated[User, Depends(require_instructor)]
 StudentUser = Annotated[User, Depends(require_student)]
+
+
+def require_admin(user: CurrentUser) -> User:
+    if user.role != ADMIN:
+        raise HTTPException(status_code=403, detail="Admin role required")
+    return user
+
+
+AdminUser = Annotated[User, Depends(require_admin)]

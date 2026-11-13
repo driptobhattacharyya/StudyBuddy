@@ -17,8 +17,6 @@ from core.config import get_settings
 from core.ratelimit import auth_limiter
 from core.security import (
     DEMO_EMAILS,
-    INSTRUCTOR,
-    STUDENT,
     CurrentUser,
     create_access_token,
     create_user,
@@ -59,7 +57,7 @@ async def demo_login(body: DemoLoginRequest, request: Request):
     auth_limiter.check(f"demo:{_client_ip(request)}")
     role = body.role.lower()
     if role not in DEMO_EMAILS:
-        raise HTTPException(status_code=422, detail="role must be 'student' or 'instructor'")
+        raise HTTPException(status_code=422, detail="role must be 'student', 'instructor' or 'admin'")
     user = await run_in_threadpool(ensure_demo_user, role)
     return TokenResponse(access_token=create_access_token(user.email, user.role), role=user.role)
 

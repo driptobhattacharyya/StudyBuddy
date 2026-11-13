@@ -35,8 +35,9 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8000/oauth/callback"
-    # Comma separated list of e-mail addresses that get the instructor role.
+    # Comma separated list of e-mail addresses that get the instructor / admin role.
     instructor_emails: str = ""
+    admin_emails: str = ""
     demo_mode: bool = False
     # Seed the demo dataset (idempotent) on startup. Intended for demo deployments.
     seed_demo_on_startup: bool = False
@@ -52,6 +53,11 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     ai_timeout_seconds: float = 60.0
     ai_max_input_chars: int = 8000
+    # Global (all users) cap on AI requests per UTC day.
+    ai_daily_request_cap: int = 500
+    # Rough pricing used for the admin cost estimate (USD per 1M tokens). Free models cost 0.
+    ai_cost_in_per_mtok: float = 0.30
+    ai_cost_out_per_mtok: float = 2.50
     rag_top_k: int = 4
 
     # --- code runner -------------------------------------------------------
@@ -71,10 +77,6 @@ class Settings(BaseSettings):
     rate_limit_run_per_minute: int = 30
     rate_limit_auth_per_minute: int = 30
 
-    # --- background jobs ---------------------------------------------------
-    enable_scheduler: bool = True
-    grading_interval_seconds: int = 60
-
     # ----------------------------------------------------------------------
     @property
     def cors_origins_list(self) -> list[str]:
@@ -83,6 +85,10 @@ class Settings(BaseSettings):
     @property
     def instructor_emails_set(self) -> set[str]:
         return {e.strip().lower() for e in self.instructor_emails.split(",") if e.strip()}
+
+    @property
+    def admin_emails_set(self) -> set[str]:
+        return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
 
     @property
     def google_login_enabled(self) -> bool:

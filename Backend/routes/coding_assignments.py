@@ -1,177 +1,114 @@
-from fastapi import APIRouter, Security, HTTPException
-from models.user import User
-from models.assignment import CodingSubmission
-from utils.response import objectEntity, objectsEntity, responses
-import subprocess
-from database.db import db
-from typing import Annotated, List, Dict, Tuple
-from bson import ObjectId
-
-from utils.security import get_current_active_user
-from utils.validation import AlreadyExistsError, NotExistsError
-from models.assignment import ProgrammingAssignment, ProgrammingAssignmentUpdate
 import base64
+import binascii
+import logging
+from datetime import datetime, timezone
 
-coding_assignment=APIRouter(prefix='/coding_assignment', tags=["Coding Assignment"])
+from fastapi import APIRouter
+from fastapi.concurrency import run_in_threadpool
+
+from ai import service as ai_service
+from ai.errors import AIError, to_http
+from core.deps import AIUser, RunUser
+from core.security import CurrentUser, InstructorUser
+from database.db import db
+from models.assignment import CodingSubmission, ProgrammingAssignment, ProgrammingAssignmentUpdate
+from runner import UnsupportedLanguage, normalize_language
+from runner.grading import evaluate_tests, hide_details, score
+from utils.grading import deadline_passed, record_mark
+from utils.lookup import ensure_course, get_or_404
+from utils.projection import public_coding_assignment
+from utils.response import responses, to_doc
+from utils.validation import bad_request
+
+log = logging.getLogger(__name__)
+coding_assignment = APIRouter(prefix="/coding_assignment", tags=["Coding Assignment"])
+
+
+def _doc(model) -> dict:
+    doc = to_doc(model)
+    doc["language"] = normalize_language(doc["language"]).replace("javascript", "js")
+    doc["public_testcase"] = [dict(t) for t in doc["public_testcase"]]
+    doc["private_testcase"] = [dict(t) for t in doc["private_testcase"]]
+    return doc
+
 
 @coding_assignment.post("/create_programming_question", status_code=201, responses=responses)
-async def create_programming_question(
-    current_user: Annotated[User, Security(get_current_active_user, scopes=["user"])],
-    assignment: ProgrammingAssignment
-):
-    assignment_in = db.coding_assignment.insert_one(dict(assignment))
-    if assignment_in.acknowledged:
-        return {"msg": "success", "db_entry_id": str(assignment_in.inserted_id)}
-    raise AlreadyExistsError()
-    
-@coding_assignment.get('/get/{assgn_id}', responses=responses)
-async def get_coding_assignment(assgn_id: str, current_user: Annotated[User, Security(get_current_active_user, scopes=["user"])]):
-    try:
-        find = db.coding_assignment.find_one({'_id': ObjectId(assgn_id)})
-        if find:
-            return objectEntity(find)  # Convert the MongoDB document to JSON serializable format
-        else:
-            raise NotExistsError()
-    except NotExistsError:
-        raise HTTPException(status_code=404, detail="Assignment not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+def create_programming_question(user: InstructorUser, assignment: ProgrammingAssignment):
+    ensure_course(assignment.course_id)
+    res = db.coding_assignment.insert_one(_doc(assignment))
+    return {"msg": "success", "db_entry_id": str(res.inserted_id)}
 
-@coding_assignment.delete('/delete/{assgn_id}', responses=responses)
-async def delete_coding_assignment(assgn_id: str, current_user: Annotated[User, Security(get_current_active_user, scopes=["user"])]):
-    try: 
-        ObjectId(assgn_id)
-    except:
-        raise HTTPException(status_code=422, detail="Invalid assignment id")
-    find = db.coding_assignment.find_one_and_delete(filter={'_id': ObjectId(assgn_id)})
-    if find:
-        return {'msg': "Assignment Deleted"}
-    raise NotExistsError()
 
-@coding_assignment.put('/update/{assgn_id}', status_code=202, responses=responses)
-async def update_coding_assignment(
-    current_user: Annotated[User, Security(get_current_active_user, scopes=["user"])],
-    assgn_id: str,
-    assgn: ProgrammingAssignmentUpdate
-):
-    try: 
-        ObjectId(assgn_id)
-    except:
-        raise HTTPException(status_code=422, detail="Invalid assignment id")
-    
-    assgn = db.coding_assignment.find_one_and_update({"_id": ObjectId(assgn_id)}, {"$set": dict(assgn)})
-    if not assgn:
-        raise NotExistsError()
+@coding_assignment.get("/get/{assgn_id}", responses=responses)
+def get_coding_assignment(assgn_id: str, user: CurrentUser):
+    return public_coding_assignment(get_or_404("coding_assignment", assgn_id, "assignment id"), user.is_instructor)
+
+
+@coding_assignment.delete("/delete/{assgn_id}", responses=responses)
+def delete_coding_assignment(assgn_id: str, user: InstructorUser):
+    existing = get_or_404("coding_assignment", assgn_id, "assignment id")
+    db.coding_assignment.delete_one({"_id": existing["_id"]})
+    return {"msg": "Assignment Deleted"}
+
+
+@coding_assignment.put("/update/{assgn_id}", status_code=202, responses=responses)
+def update_coding_assignment(user: InstructorUser, assgn_id: str, assgn: ProgrammingAssignmentUpdate):
+    existing = get_or_404("coding_assignment", assgn_id, "assignment id")
+    db.coding_assignment.update_one({"_id": existing["_id"]}, {"$set": _doc(assgn)})
     return {"msg": "Assigment Updated"}
 
-def run_test_cases(code: str, test_cases: List[Dict[str, str]], language: str) -> Tuple[List[Dict[str, str]], int]:
-    results = []
-    passed_count = 0
 
-    for testcase in test_cases:
-        input_data = testcase['input']
-        expected_output = testcase['output']
-
-        if language == 'python':
-            result = subprocess.run(
-                ["python", "-c", code],
-                input=input_data,
-                capture_output=True,
-                text=True
-            )
-        elif language == 'java':
-            # Save code to a file
-            with open("static/Main.java", "w") as f:
-                f.write(code)
-            
-            # Compile Java code
-            compile_result = subprocess.run(
-                ["javac", "static/Main.java"],
-                capture_output=True,
-                text=True
-            )
-
-            if compile_result.returncode != 0:
-                results.append({
-                    "error": compile_result.stderr.strip(),
-                    "output": "",
-                    "status": "Fail"
-                })
-                continue
-
-            # Run Java code
-            result = subprocess.run(
-                ["java", "-cp", "static", "Main"],
-                input=input_data,
-                capture_output=True,
-                text=True
-            )
-        elif language == 'js':
-            if not input_data.endswith('\n'):
-                input_data += '\n'
-                
-            result = subprocess.run(
-                ["node", "-e", code], 
-                input=input_data, 
-                capture_output=True, 
-                text=True
-            )
-        else:
-            raise ValueError(f"Unsupported language: {language}")
-
-        result_dict = {
-            "error": "",
-            "input": input_data,
-            "expected_output": expected_output,
-            "output": result.stdout.strip(),
-            "status": ""
-        }
-
-        if result.returncode == 0:
-            if result.stdout.strip() == expected_output:
-                result_dict["status"] = "Pass"
-                passed_count += 1
-            else:
-                result_dict["status"] = "Fail"
-        else:
-            result_dict["error"] = result.stderr.strip()
-            result_dict["status"] = "Fail"
-        
-        results.append(result_dict)
-
-    return results, passed_count
-
-@coding_assignment.post('/run', responses=responses)
-async def run_code(
-    current_user: Annotated[User, Security(get_current_active_user, scopes=["user"])],
-    submission: CodingSubmission
-):
-    try: 
-        ObjectId(submission.assgn_id)
-    except:
-        raise HTTPException(status_code=422, detail="Invalid assignment id")
-    
+def _decode(code_b64: str) -> str:
     try:
-        assgn = db.coding_assignment.find_one({"_id": ObjectId(submission.assgn_id)})
-        if not assgn:
-            raise NotExistsError()
-        
-        decoded_code = base64.b64decode(submission.code).decode('utf-8')
-        public_testcases = assgn.get('public_testcase', [])
-        private_testcases = assgn.get('private_testcase', [])
-        # Run the test cases and get results and passed counts
-        public_results, passed_public_count = run_test_cases(decoded_code, public_testcases, assgn['language'])
-        private_results, passed_private_count = run_test_cases(decoded_code, private_testcases, assgn['language'])
+        return base64.b64decode(code_b64, validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError, ValueError):
+        raise bad_request("code must be base64 encoded UTF-8 text") from None
 
-        mark = int(round(passed_private_count/len(private_testcases)*100,2))
 
-        # Return results
-        return {
-            "public_testcases": public_results,
-            "private_testcases": private_results,
-            "passed_public_count": f"{passed_public_count}/{len(public_testcases)}",
-            "passed_private_count": f"{passed_private_count}/{len(private_testcases)}",
-            "mark": mark
-        }
-    except Exception as e:
-        return {"error": str(e)}
+def _run(assgn: dict, code: str, staff: bool) -> dict:
+    public = assgn.get("public_testcase", [])
+    private = assgn.get("private_testcase", [])
+    try:
+        normalize_language(assgn["language"])
+    except UnsupportedLanguage as exc:
+        raise bad_request(str(exc)) from None
+    public_results = evaluate_tests(assgn["language"], code, public)
+    private_results = evaluate_tests(assgn["language"], code, private)
+    mark = int(round(score(private_results) * 100))
+    return {
+        "public_testcases": public_results,
+        "private_testcases": private_results if staff else [hide_details(r) for r in private_results],
+        "passed_public_count": f"{sum(r['passed'] for r in public_results)}/{len(public)}",
+        "passed_private_count": f"{sum(r['passed'] for r in private_results)}/{len(private)}",
+        "mark": mark,
+    }
+
+
+@coding_assignment.post("/run", responses=responses)
+def run_code(user: RunUser, submission: CodingSubmission):
+    """Run code against public + hidden tests in the sandbox. Students' latest run is saved and graded."""
+    assgn = get_or_404("coding_assignment", submission.assgn_id, "assignment id")
+    code = _decode(submission.code)
+    result = _run(assgn, code, user.is_instructor)
+    if not user.is_instructor and not (assgn["assgn_type"] == "GrPA" and deadline_passed(assgn)):
+        db.submission.update_one(
+            {"assgn_id": assgn["_id"], "user_id": user.user_id},
+            {"$set": {"assgn_id": assgn["_id"], "user_id": user.user_id, "answer": [submission.code],
+                      "submitted_at": datetime.now(timezone.utc)}},
+            upsert=True,
+        )
+        record_mark(user.user_id, assgn, result["mark"] / 100)
+        result["saved"] = True
+    return result
+
+
+@coding_assignment.post("/{assgn_id}/feedback", responses=responses)
+async def code_feedback(assgn_id: str, body: CodingSubmission, user: AIUser):
+    """AI code review. Never reveals a full solution before the deadline."""
+    assgn = await run_in_threadpool(get_or_404, "coding_assignment", assgn_id, "assignment id")
+    code = _decode(body.code)
+    try:
+        return await ai_service.code_feedback(
+            user.email, assgn, code, deadline_passed(assgn) or user.is_instructor)
+    except AIError as exc:
+        raise to_http(exc) from None

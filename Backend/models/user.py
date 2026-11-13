@@ -26,4 +26,5 @@ class User(BaseModel):
 
     @property
     def is_instructor(self) -> bool:
-        return self.role == Role.instructor.value
+        """True for instructors and admins (staff): they see full assignment documents."""
+        return self.role in (Role.instructor.value, Role.admin.value)

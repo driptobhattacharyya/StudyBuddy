@@ -23,6 +23,12 @@ class HintRequest(BaseModel):
     message: Optional[str] = None
 
 
+class GenerateFromMaterial(BaseModel):
+    material_id: Optional[str] = None
+    text: Optional[str] = None
+    n_questions: int = Field(default=4, ge=1, le=10)
+
+
 class SuccessCreateResponse(BaseModel):
     message: str
     db_entry_id: str = Field(min_length=24, max_length=24)
