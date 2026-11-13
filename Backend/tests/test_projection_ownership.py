@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 
-from tests.conftest import b64
 
 
 def test_student_never_sees_answers(client, student, instructor, course, questions):

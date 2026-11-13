@@ -72,20 +72,16 @@ def load_user(email: str) -> User | None:
 
 def create_user(email: str, name: str | None, picture: str | None = None, roles: list[str] | None = None,
                 user_id: str | None = None) -> User:
-    db.user.update_one(
-        {"email": email},
-        {
-            "$setOnInsert": {
-                "user_id": user_id or str(uuid.uuid4()),
-                "email": email,
-                "roles": roles or [STUDENT],
-                "courses": [],
-                "disabled": False,
-            },
-            "$set": {k: v for k, v in {"name": name, "picture": picture}.items() if v},
-        },
-        upsert=True,
-    )
+    update: dict = {
+        "$setOnInsert": {
+            "user_id": user_id or str(uuid.uuid4()), "email": email, "roles": roles or [STUDENT],
+            "courses": [], "disabled": False,
+        }
+    }
+    profile = {k: v for k, v in {"name": name, "picture": picture}.items() if v}
+    if profile:  # Mongo rejects an empty $set
+        update["$set"] = profile
+    db.user.update_one({"email": email}, update, upsert=True)
     user = load_user(email)
     assert user is not None
     return user

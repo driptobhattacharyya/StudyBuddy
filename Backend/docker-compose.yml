@@ -1,0 +1,16 @@
+# Local stack: API + MongoDB. Frontend runs separately (npm run dev).
+services:
+  mongo:
+    image: mongo:7
+    volumes: [mongo-data:/data/db]
+  api:
+    build: .
+    ports: ["8000:8000"]
+    env_file: [.env]
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      DEMO_MODE: "true"
+      SEED_DEMO_ON_STARTUP: "true"
+    depends_on: [mongo]
+volumes:
+  mongo-data:
