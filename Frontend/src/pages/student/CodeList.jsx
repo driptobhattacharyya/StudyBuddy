@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { differenceInHours, format, formatDistanceToNowStrict, isPast } from 'date-fns'
 import { AlertCircle, ArrowRight, CheckCircle2, Clock, Code2, Lock, RefreshCw } from 'lucide-react'
-import { getCourseContents } from '@/lib/services/courses'
+import { loadCourseContents } from '@/lib/courseContents'
 import { getErrorMessage } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { getCodeStatus, LANG_LABEL, titleOf } from '@/lib/codeStatus'
@@ -50,7 +50,7 @@ export default function StudentCodeList() {
 
   const load = useCallback(() => {
     setState((s) => ({ ...s, loading: true, error: null }))
-    getCourseContents(courseId)
+    loadCourseContents(courseId)
       .then((d) => setState({ loading: false, items: d?.coding_assignments ?? [], error: null }))
       .catch((e) => {
         toast.error('Could not load coding problems', { description: getErrorMessage(e) })

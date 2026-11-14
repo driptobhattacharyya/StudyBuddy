@@ -4,7 +4,7 @@
  * { public_testcases[], private_testcases[], passed_public_count, passed_private_count, mark(0-100) };
  * POST /coding_assignment/{id}/feedback { assgn_id, code(base64) } -> { feedback, trace_id }; WS /generate for streamed hints.
  */
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { format, isPast } from 'date-fns'
 import { AlertCircle, ArrowLeft, Bot, CheckCircle2, Clock, FileText, Lightbulb, Play, RefreshCw, Send, Terminal, XCircle } from 'lucide-react'
@@ -26,6 +26,19 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { Markdown, UnderTheHood } from '@/components/ai'
 
 const CodeMonaco = lazy(() => import('@/components/CodeMonaco'))
+
+/** Plain textarea used if Monaco fails to load. */
+function PlainEditor({ value, onChange, readOnly }) {
+  return <textarea aria-label="Code editor" spellCheck={false} readOnly={readOnly} value={value} onChange={(e) => onChange(e.target.value)} className="h-full w-full resize-none bg-surface p-3 font-mono text-sm outline-none" />
+}
+
+class EditorBoundary extends Component {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  render() {
+    return this.state.failed ? <PlainEditor {...this.props.fallbackProps} /> : this.props.children
+  }
+}
 
 const STARTERS = {
   python: '# Read from standard input with input() and print your answer.\n\n',
@@ -136,8 +149,7 @@ function Problem({ problem, assgnId, getCode }) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold leading-snug tracking-tight">{titleOf(problem.question)}</h2>
-        <div className="mt-2 prose prose-sm prose-slate max-w-none dark:prose-invert"><Markdown className="prose-sm">{problem.question}</Markdown></div>
+        <div className="prose prose-sm prose-slate max-w-none dark:prose-invert"><Markdown className="prose-sm">{problem.question}</Markdown></div>
       </div>
       {tests.length > 0 && (
         <section aria-labelledby="examples">
@@ -251,7 +263,7 @@ export default function StudentCodeEditor() {
             {problem.deadline && <Badge variant={closed ? 'danger' : 'neutral'}><Clock className="size-3" /> {closed ? 'Closed' : `Due ${format(new Date(problem.deadline), 'MMM d, p')}`}</Badge>}
           </div>
         </div>
-        <Select aria-label="Language" className="h-9 w-36" value={lang} onChange={(e) => setLang(e.target.value)}>
+        <Select aria-label="Language" className="h-9 w-32 sm:w-36" value={lang} onChange={(e) => setLang(e.target.value)}>
           {LANGUAGES.map((l) => <option key={l} value={l} disabled={!!fixedLang && fixedLang !== l}>{LANG_LABEL[l]}{fixedLang && fixedLang !== l ? ' (n/a)' : ''}</option>)}
         </Select>
         <Button variant="outline" size="sm" onClick={() => execute('run')} loading={run.busy === 'run'} disabled={!!run.busy} title="Run public tests (Ctrl/Cmd+Enter)"><Play className="size-4" /> Run</Button>
@@ -276,12 +288,14 @@ export default function StudentCodeEditor() {
           {...splitHandlers}
           className="hidden w-1.5 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-brand-400 focus-visible:bg-brand-500 lg:block"
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className={cn('min-h-0 min-w-0 flex-1 flex-col lg:flex', tab === 'problem' ? 'hidden' : 'flex')}>
           <section aria-label="Editor" className={cn('min-h-0 flex-1 flex-col lg:flex', paneVis('code'))}>
             <div className="min-h-0 flex-1">
+              <EditorBoundary fallbackProps={{ value: code, onChange: (v) => setCodes((c) => ({ ...c, [lang]: v })), readOnly: closed }}>
               <Suspense fallback={<Skeleton className="h-full w-full rounded-none" />}>
                 <CodeMonaco value={code} onChange={(v) => setCodes((c) => ({ ...c, [lang]: v }))} language={monacoLang(lang)} dark={theme === 'dark'} readOnly={closed} onRun={() => execute('run')} />
               </Suspense>
+              </EditorBoundary>
             </div>
           </section>
           <section aria-label="Results" aria-live="polite" className={cn('min-h-0 flex-col overflow-y-auto border-t border-border bg-surface p-4 lg:flex lg:h-[38%] lg:flex-none', paneVis('results'))}>

@@ -1,17 +1,14 @@
 // Lazy-loaded Monaco editor (bundled locally - no CDN). Import via React.lazy so Monaco only ships with the code editor page.
 import Editor, { loader } from '@monaco-editor/react'
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
-import 'monaco-editor/esm/vs/basic-languages/python/python.contribution'
-import 'monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution'
-import 'monaco-editor/esm/vs/basic-languages/java/java.contribution'
+import * as monaco from 'monaco-editor/editor/editor.api'
+import 'monaco-editor/languages/definitions/python/register'
+import 'monaco-editor/languages/definitions/javascript/register'
+import 'monaco-editor/languages/definitions/java/register'
+import EditorWorker from 'monaco-editor/editor/editor.worker?worker'
 import { Skeleton } from '@/components/ui/Skeleton'
 
-// No language-service workers: syntax highlighting only, which runs fine on the main thread.
-if (typeof self !== 'undefined' && !self.MonacoEnvironment) {
-  self.MonacoEnvironment = {
-    getWorker: () => new Worker(URL.createObjectURL(new Blob(['self.onmessage=()=>{}'], { type: 'text/javascript' }))),
-  }
-}
+// Editor worker bundled by Vite (no CDN, works offline). Only the base editor worker is needed for highlighting.
+self.MonacoEnvironment = { getWorker: () => new EditorWorker() }
 loader.config({ monaco })
 
 export default function CodeMonaco({ value, onChange, language, dark, readOnly, onRun }) {

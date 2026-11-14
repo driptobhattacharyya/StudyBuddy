@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import DOMPurify from 'dompurify'
 import { BookOpen, Download, FileText, ListChecks, MessageCircleQuestion, RefreshCw, Sparkles } from 'lucide-react'
-import { getNotes } from '@/lib/services/notes'
+import { getCourseMaterial, getNotes } from '@/lib/services/notes'
 import { summarizeFull, generateQuestionsFull, WS_COURSE_CHAT } from '@/lib/services/ai'
 import { getErrorMessage } from '@/lib/api'
 import { toast } from '@/lib/toast'
@@ -252,8 +252,19 @@ export default function StudentNotes() {
   const load = useCallback(() => {
     let alive = true
     setState((s) => ({ ...s, loading: true, error: null }))
-    getNotes(courseId)
-      .then((data) => alive && setState({ loading: false, notes: Array.isArray(data) ? data : [], error: null }))
+    // Notes live in two places: the notes collection and course_material rows of type "notes" (what the demo seed uses).
+    Promise.allSettled([getNotes(courseId), getCourseMaterial(courseId)])
+      .then(([n, m]) => {
+        if (!alive) return
+        if (n.status === 'rejected' && m.status === 'rejected') throw n.reason
+        const fromNotes = n.status === 'fulfilled' && Array.isArray(n.value) ? n.value : []
+        const fromMaterial = (m.status === 'fulfilled' && Array.isArray(m.value) ? m.value : [])
+          .filter((x) => x.material_type === 'notes' && x.content)
+          .map((x) => ({ _id: x._id, course_id: x.course_id, title: x.title || `Week ${x.week} notes`, content: x.content, week: x.week, url: x.url }))
+        const seen = new Set()
+        const notes = [...fromNotes, ...fromMaterial].filter((x) => !seen.has(idOf(x)) && seen.add(idOf(x)))
+        setState({ loading: false, notes, error: null })
+      })
       .catch((e) => {
         if (!alive) return
         toast.error('Could not load notes', { description: getErrorMessage(e) })

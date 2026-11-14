@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { differenceInHours, format, formatDistanceToNowStrict, isPast } from 'date-fns'
 import { AlertCircle, Award, CheckCircle2, ClipboardList, Clock, Lightbulb, Lock, RefreshCw, Send, Sparkles, TrendingDown, XCircle } from 'lucide-react'
-import { getCourseContents } from '@/lib/services/courses'
+import { loadCourseContents } from '@/lib/courseContents'
 import { getMarks, getMyInsights, submitAnswers } from '@/lib/services/assignments'
 import { buildQuestionHintQuery, generateSimilarFull, WS_ASSISTANT } from '@/lib/services/ai'
 import { useAIStream } from '@/lib/stream'
@@ -248,7 +248,7 @@ export default function StudentAssignments() {
 
   const load = useCallback(() => {
     setState((s) => ({ ...s, loading: true, error: null }))
-    getCourseContents(courseId)
+    loadCourseContents(courseId)
       .then((data) => setState({ loading: false, items: (data?.assignments ?? []).filter((a) => ['AQ', 'PA', 'GA'].includes(a.assgn_type)), error: null }))
       .catch((e) => {
         toast.error('Could not load assignments', { description: getErrorMessage(e) })

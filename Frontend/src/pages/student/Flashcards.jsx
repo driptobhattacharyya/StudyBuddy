@@ -114,8 +114,8 @@ function GenerateDialog({ open, onOpenChange, courseId, defaultWeek, onCreated }
 }
 
 function StudyMode({ cards, srs, setSrs, onExit, paused }) {
+  const [now] = useState(() => Date.now())
   const order = useMemo(() => {
-    const now = Date.now()
     return [...cards]
       .sort((a, b) => {
         const sa = srs[idOf(a)] ?? { box: 0, due: 0 }
@@ -199,7 +199,7 @@ function StudyMode({ cards, srs, setSrs, onExit, paused }) {
             </div>
           </button>
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <Button variant="outline" size="lg" onClick={() => mark(false)}><X className="size-5 text-red-500" /> Don't know <kbd className="hidden text-xs text-subtle sm:inline">&larr;</kbd></Button>
+            <Button variant="outline" size="lg" onClick={() => mark(false)}><X className="size-5 text-red-500" /> Don&apos;t know <kbd className="hidden text-xs text-subtle sm:inline">&larr;</kbd></Button>
             <Button size="lg" onClick={() => mark(true)}><Check className="size-5" /> I know it <kbd className="hidden text-xs text-white/70 sm:inline">&rarr;</kbd></Button>
           </div>
           <p className="mt-3 text-center text-xs text-muted">{queue.length} left in this session. Space flips, arrow keys mark.</p>
@@ -234,7 +234,8 @@ export default function StudentFlashcards() {
 
   const weeks = useMemo(() => [...new Set(state.cards.map((c) => c.week))].sort((a, b) => a - b), [state.cards])
   const shown = state.cards.filter((c) => week === 'all' || c.week === Number(week))
-  const dueCount = shown.filter((c) => (srs[idOf(c)]?.due ?? 0) <= Date.now()).length
+  const [now] = useState(() => Date.now())
+  const dueCount = shown.filter((c) => (srs[idOf(c)]?.due ?? 0) <= now).length
   const defaultWeek = week === 'all' ? 1 : Number(week)
 
   const save = async (form) => {
