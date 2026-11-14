@@ -26,7 +26,7 @@ services:
       - key: SEED_DEMO_ON_STARTUP
         value: "true"
       - key: AI_PROVIDER
-        value: gemini
+        value: openai
       - key: CODE_RUNNER
         value: local
       # Set to the static site URL shown after the first deploy (e.g. https://study-buddy-web.onrender.com).
