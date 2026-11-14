@@ -15,6 +15,7 @@ import { CourseSwitcher } from './CourseSwitcher'
 import { ThemeToggle } from './ThemeToggle'
 import { UserMenu } from './UserMenu'
 import { DemoRoleSwitcher } from './DemoRoleSwitcher'
+import { AIModeBadge } from './AIModeBadge'
 
 const COLLAPSE_KEY = 'sb_sidebar_collapsed'
 
@@ -177,6 +178,7 @@ export function AppShell({ shell }) {
             </Button>
             {!config.noCourses && <CourseSwitcher base={config.base} />}
             <div className="flex-1" />
+            <AIModeBadge />
             <DemoRoleSwitcher />
             <ThemeToggle />
             <UserMenu />

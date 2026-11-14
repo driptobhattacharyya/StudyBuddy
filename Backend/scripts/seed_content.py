@@ -351,6 +351,12 @@ CODING = [
     },
 ]
 
+STARTER_CODE = {
+    "python": "# Read from standard input with input() and print() the result.\n\n",
+    "js": "// Read standard input, then console.log() the result.\nconst lines = require('fs').readFileSync(0, 'utf8').split('\\n');\n\n",
+    "java": "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // TODO: solve the problem\n    }\n}\n",
+}
+
 REFERENCE_SOLUTIONS = {
     "fizzbuzz": ("python", """n = int(input())
 for i in range(1, n + 1):

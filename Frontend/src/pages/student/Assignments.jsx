@@ -3,16 +3,15 @@
  * Endpoints: GET /course/get_contents?course_id= (assignments with assgn_id|_id, no answers);
  * POST /user/submit_answers [{assgn_id, answer: any[]}] -> { results: [{assgn_id, mark, correct}] } (graded on submit);
  * GET /user/get_marks?course_id= -> [{week, assgn_type, mark(%)}]; GET /user/insights/{course_id} (optional);
- * WS /generate (streamed Socratic hint); POST /generate_assignment_questions {text} (more like this).
+ * POST /ai/hint (server-side Socratic hint); POST /generate_assignment_questions {text} (more like this).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { differenceInHours, format, formatDistanceToNowStrict, isPast } from 'date-fns'
-import { AlertCircle, Award, CheckCircle2, ClipboardList, Clock, Lightbulb, Lock, RefreshCw, Send, Sparkles, TrendingDown, XCircle } from 'lucide-react'
+import { AlertCircle, Award, CheckCircle2, ClipboardList, Clock, Lock, RefreshCw, Send, Sparkles, TrendingDown, XCircle } from 'lucide-react'
 import { loadCourseContents } from '@/lib/courseContents'
 import { getMarks, getMyInsights, submitAnswers } from '@/lib/services/assignments'
-import { buildQuestionHintQuery, generateSimilarFull, WS_ASSISTANT } from '@/lib/services/ai'
-import { useAIStream } from '@/lib/stream'
+import { generateSimilarFull } from '@/lib/services/ai'
 import { getErrorMessage } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/cn'
@@ -26,7 +25,7 @@ import { Dialog, DialogClose } from '@/components/ui/Dialog'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Input, Select } from '@/components/ui/Field'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { Markdown, PracticeQuiz, UnderTheHood } from '@/components/ai'
+import { HintBox, PracticeQuiz } from '@/components/ai'
 
 const TYPE_LABEL = { AQ: 'Practice', PA: 'Practice', GA: 'Graded' }
 const idOf = (a) => a._id ?? a.assgn_id
@@ -48,24 +47,12 @@ function DeadlineBadge({ deadline, graded }) {
 }
 
 function Hint({ question, selected }) {
-  const { text, status, error, meta, send, stop, isStreaming } = useAIStream(WS_ASSISTANT)
-  const ask = () => send({ query: buildQuestionHintQuery({ question: question.question, options: question.options ?? [], selected }) })
   return (
-    <div>
-      <div className="flex items-center gap-2">
-        <Button size="sm" variant="ghost" onClick={isStreaming ? stop : ask}>
-          <Lightbulb className="size-4" /> {isStreaming ? 'Stop' : text ? 'Another hint' : 'Hint'}
-        </Button>
-      </div>
-      {(text || error) && (
-        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 dark:border-amber-500/30 dark:bg-amber-500/10" aria-live="polite">
-          {text && <Markdown className="prose-sm">{text}</Markdown>}
-          {status === 'streaming' && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-amber-500 align-middle" aria-hidden="true" />}
-          {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          {status === 'done' && meta?.trace_id && <div className="mt-1 flex justify-end"><UnderTheHood traceId={meta.trace_id} /></div>}
-        </div>
-      )}
-    </div>
+    <HintBox
+      assgnId={idOf(question)}
+      getMessage={() => (selected.length ? `My current selection: ${selected.join(', ')}` : '')}
+      again
+    />
   )
 }
 

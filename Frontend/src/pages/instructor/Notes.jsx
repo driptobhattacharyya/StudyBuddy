@@ -80,7 +80,7 @@ function NoteEditor({ note, courseId, onClose, onSaved }) {
 }
 
 function AIAssist({ notes, initialNote, courseId, onClose }) {
-  const [source, setSource] = useState(initialNote ? idOf(initialNote) : '')
+  const [source, setSource] = useState(initialNote ? idOf(initialNote) : notes[0] ? idOf(notes[0]) : '')
   const [pasted, setPasted] = useState('')
   const [count, setCount] = useState(4)
   const [busy, setBusy] = useState(false)

@@ -17,7 +17,7 @@ from core.config import get_settings
 from core.logging import configure_logging
 from core.security import ADMIN, INSTRUCTOR, STUDENT, create_user, ensure_demo_user
 from database.db import db, ensure_indexes
-from scripts.seed_content import CODING, COURSES, FLASHCARDS
+from scripts.seed_content import CODING, COURSES, FLASHCARDS, STARTER_CODE
 from utils.grading import submit_and_grade
 
 log = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ def seed(reset: bool = False) -> dict[str, Any]:
         _upsert_assignment(db.coding_assignment, {"course_id": c["course_id"], "week": c["week"], "question": c["question"]}, {
             "course_id": c["course_id"], "week": c["week"], "assgn_type": c["assgn_type"], "language": c["language"],
             "question": c["question"], "public_testcase": tests(c["public"]), "private_testcase": tests(c["private"]),
-            "deadline": now + timedelta(days=c["days"])})
+            "starter_code": STARTER_CODE.get(c["language"], ""), "deadline": now + timedelta(days=c["days"])})
         counts["coding_assignments"] += 1
 
     # ---- users -------------------------------------------------------------

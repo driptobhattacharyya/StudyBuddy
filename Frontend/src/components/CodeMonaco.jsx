@@ -11,10 +11,10 @@ import { Skeleton } from '@/components/ui/Skeleton'
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() }
 loader.config({ monaco })
 
-export default function CodeMonaco({ value, onChange, language, dark, readOnly, onRun }) {
+export default function CodeMonaco({ value, onChange, language, dark, readOnly, onRun, height = '100%', fontSize = 14, label = 'Code editor' }) {
   return (
     <Editor
-      height="100%"
+      height={height}
       language={language}
       value={value}
       theme={dark ? 'vs-dark' : 'vs'}
@@ -27,14 +27,14 @@ export default function CodeMonaco({ value, onChange, language, dark, readOnly, 
       options={{
         readOnly,
         minimap: { enabled: false },
-        fontSize: 14,
+        fontSize,
         lineNumbersMinChars: 3,
         scrollBeyondLastLine: false,
         automaticLayout: true,
         tabSize: 4,
         padding: { top: 12 },
         wordWrap: 'on',
-        ariaLabel: 'Code editor',
+        ariaLabel: label,
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
       }}
     />

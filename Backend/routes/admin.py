@@ -37,7 +37,7 @@ def change_role(email: str, body: RoleChange, user: AdminUser):
     target = db.user.find_one({"email": email})
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
-    if email == user.email and role != "admin":
+    if email.lower() == user.email.lower() and role != "admin":
         raise HTTPException(status_code=400, detail="You cannot remove your own admin role")
     db.user.update_one({"email": email}, {"$set": {"roles": [role]}})
     effective = resolve_role(email, [role])

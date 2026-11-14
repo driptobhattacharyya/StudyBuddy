@@ -50,7 +50,7 @@ def course_contents(course: dict, materials: list[dict], assignments: list[dict]
         d = {
             "assgn_id": a["_id"], "question": a.get("question"), "language": a.get("language"),
             "public_testcase": a.get("public_testcase", []),
-            "private_testcase": a.get("private_testcase", []),
+            "private_testcase": a.get("private_testcase", []), "starter_code": a.get("starter_code", ""),
             "assgn_type": a.get("assgn_type"), "course_id": a.get("course_id"),
             "week": a.get("week"), "deadline": a.get("deadline"),
         }

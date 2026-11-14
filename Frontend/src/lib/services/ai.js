@@ -20,19 +20,12 @@ export const generateQuestions = (text) => api.post('/generate_questions', { tex
 export const generateAssignmentQuestions = (text) =>
   api.post('/generate_assignment_questions', { text }).then((r) => r.data?.questions ?? r.data)
 
-/** POST /gen_ai/hints - REST hint endpoint (currently a stub on the backend; prefer streaming via WS_ASSISTANT + buildHintQuery). */
-export const getHints = (payload) => api.post('/gen_ai/hints', payload).then((r) => r.data)
-
 /** POST /user/generate { query } -> { response } (non streaming general answer) */
 export const ask = (query) => api.post('/user/generate', { query }).then((r) => r.data?.response ?? r.data)
 
 /** POST /user/search_generate { query, course_id, week } -> { response } (non streaming RAG answer) */
 export const askCourse = ({ query, courseId, week = 0 }) =>
   api.post('/user/search_generate', { query, course_id: courseId, week }).then((r) => r.data?.response ?? r.data)
-
-/** Prompt used by the code editor's "Hint" button over WS_ASSISTANT (hints, never the full answer). */
-export const buildHintQuery = ({ question, code }) =>
-  `You are a programming tutor. Give a short hint that nudges the student toward the solution. Never reveal the full or exact answer.\n\nQuestion:\n${question}\n\nStudent code:\n${code || '(nothing yet)'}`
 
 // ---- AI observability -------------------------------------------------------------------------
 /**
@@ -48,12 +41,6 @@ export const getTrace = (traceId) => api.get(`/ai/trace/${traceId}`).then((r) =>
  */
 export const generateFromMaterial = (payload) => api.post('/ai/generate_from_material', payload).then((r) => r.data)
 
-/**
- * Student: POST /coding_assignment/{id}/feedback { code } -> { trace_id, feedback (markdown: correctness, style, complexity) }
- */
-export const getCodeFeedback = (assgnId, code) =>
-  api.post(`/coding_assignment/${assgnId}/feedback`, { code }).then((r) => r.data)
-
 // ---- Full-response variants (additive): keep `trace_id` so the UI can show "Under the hood" --------
 /** POST /summarize { text } -> { summary, trace_id } */
 export const summarizeFull = (text) => api.post('/summarize', { text }).then((r) => r.data)
@@ -64,10 +51,9 @@ export const generateQuestionsFull = (text) => api.post('/generate_questions', {
 /** POST /generate_assignment_questions { text } -> { questions: [...same shape...], trace_id } */
 export const generateSimilarFull = (text) => api.post('/generate_assignment_questions', { text }).then((r) => r.data)
 
-/** Streamed Socratic hint prompt for a question assignment (MCQ/MSQ/numeric); never reveals the answer. */
-export const buildQuestionHintQuery = ({ question, options = [], selected = [] }) =>
-  `You are a Socratic tutor. Give ONE short hint (2-3 sentences) that nudges the student toward the answer by pointing at the relevant concept or asking a guiding question. ` +
-  `Do NOT state the answer, do NOT say which option is correct, and do not eliminate options explicitly.\n\n` +
-  `Question:\n${question}\n` +
-  (options.length ? `Options:\n${options.map((o, i) => `${i + 1}. ${o}`).join('\n')}\n` : '') +
-  (selected.length ? `\nStudent's current selection: ${selected.join(', ')}` : '')
+/**
+ * POST /ai/hint { assgn_id, code?, message? } -> { hint (markdown), trace_id }.
+ * The server builds the prompt from the stored assignment, so answers / hidden tests never touch the client.
+ */
+export const getHint = ({ assgnId, code, message }) =>
+  api.post('/ai/hint', { assgn_id: assgnId, code: code || undefined, message: message || undefined }).then((r) => r.data)

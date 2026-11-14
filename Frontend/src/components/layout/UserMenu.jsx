@@ -37,7 +37,7 @@ export function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Account</DropdownMenuLabel>
         <DropdownMenuItem asChild icon={LayoutDashboard}>
-          <Link to={home}>Dashboard</Link>
+          <Link to={home} className="flex items-center gap-2.5">Dashboard</Link>
         </DropdownMenuItem>
         <DropdownMenuItem icon={LogOut} danger onSelect={() => logout()}>
           Sign out

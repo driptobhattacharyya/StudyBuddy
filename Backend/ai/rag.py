@@ -196,7 +196,8 @@ def retrieve(course_id: str, week_lte: int | None, query: str, k: int = 4) -> li
     scores: list[float] | None = None
     method = "keyword"
     embedder = providers.get_embedder()
-    if embedder is not None and all(c.get("embedding") for c in candidates):
+    model = getattr(embedder, "model", None)
+    if embedder is not None and all(c.get("embedding") and c.get("embedding_model") in (model, None) for c in candidates):
         try:
             qvec = embedder.embed([query], "RETRIEVAL_QUERY")[0]
             scores = [cosine(qvec, c["embedding"]) for c in candidates]

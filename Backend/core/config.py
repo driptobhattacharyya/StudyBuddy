@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     frontend_url: str = "http://localhost:5173"
     # Comma separated list of allowed browser origins.
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:5173,http://localhost:4173,http://localhost:3000"
 
     # --- database ----------------------------------------------------------
     # Use "mongomock://" for a throw-away in-memory database (demo/tests).
@@ -43,11 +43,15 @@ class Settings(BaseSettings):
     seed_demo_on_startup: bool = False
 
     # --- AI ----------------------------------------------------------------
-    ai_provider: Literal["gemini", "openrouter"] = "gemini"
+    ai_provider: Literal["gemini", "openrouter", "openai", "mock"] = "gemini"
     gemini_api_key: str = Field("", validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_AI_KEY"))
     gemini_model: str = "gemini-2.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 768
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_embedding_model: str = "text-embedding-3-small"
     openrouter_api_key: str = ""
     openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
@@ -96,7 +100,17 @@ class Settings(BaseSettings):
 
     @property
     def ai_api_key(self) -> str:
-        return self.gemini_api_key if self.ai_provider == "gemini" else self.openrouter_api_key
+        return {"gemini": self.gemini_api_key, "openai": self.openai_api_key,
+                "openrouter": self.openrouter_api_key}.get(self.ai_provider, "")
+
+    @property
+    def effective_ai_provider(self) -> str:
+        """``mock`` when requested, or automatically in demo mode when no API key is configured."""
+        if self.ai_provider == "mock":
+            return "mock"
+        if self.demo_mode and not self.ai_configured:
+            return "mock"
+        return self.ai_provider
 
     @property
     def ai_configured(self) -> bool:
@@ -115,6 +129,9 @@ def get_settings() -> Settings:
         # not survive a restart (and do not work across multiple workers).
         settings.secret_key = secrets.token_urlsafe(48)
         _log.warning("SECRET_KEY is not set; generated an ephemeral key. Set SECRET_KEY in production.")
+    if settings.ai_provider != "mock" and settings.demo_mode and not settings.ai_configured:
+        _log.warning("DEMO_MODE is on and no %s API key is set: falling back to AI_PROVIDER=mock "
+                     "(deterministic offline responses).", settings.ai_provider)
     return settings
 
 

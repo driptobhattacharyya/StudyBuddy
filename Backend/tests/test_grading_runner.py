@@ -173,7 +173,7 @@ def test_judge0_backend_with_mock_transport():
 # --------------------------------------------------------------- run endpoint
 def test_run_endpoint_hides_private_details_for_students(client, student, instructor, coding, db):
     code = b64("print(int(input()) * 2)")
-    res = client.post("/coding_assignment/run", json={"assgn_id": coding, "code": code}, headers=student)
+    res = client.post("/coding_assignment/run", json={"assgn_id": coding, "code": code, "submit": True}, headers=student)
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["mark"] == 100 and body["passed_public_count"] == "1/1" and body["passed_private_count"] == "2/2"
@@ -181,16 +181,48 @@ def test_run_endpoint_hides_private_details_for_students(client, student, instru
     assert body["public_testcases"][0]["expected"] == "4"
     assert body["saved"] is True and db.submission.count_documents({}) == 1
     assert db.marks.find_one({})["mark"] == 100.0
-    full = client.post("/coding_assignment/run", json={"assgn_id": coding, "code": code}, headers=instructor).json()
-    assert full["private_testcases"][0]["expected"] == "10" and "saved" not in full
+    full = client.post("/coding_assignment/run", json={"assgn_id": coding, "code": code, "submit": True}, headers=instructor).json()
+    assert full["private_testcases"][0]["expected"] == "10" and full["saved"] is False and db.submission.count_documents({}) == 1
+
+
+def test_run_without_submit_is_public_only_and_saves_nothing(client, student, coding, db):
+    body = client.post("/coding_assignment/run", json={"assgn_id": coding, "code": b64("print(int(input()) * 2)")},
+                       headers=student).json()
+    assert body["public_testcases"][0]["passed"] is True and body["private_testcases"] == []
+    assert "mark" not in body and body["saved"] is False and body["submitted"] is False
+    assert db.submission.count_documents({}) == 0 and db.marks.count_documents({}) == 0
+
+
+def test_submit_after_deadline_is_not_recorded(client, student, coding, db):
+    from datetime import timedelta
+    from tests.conftest import future
+
+    db.coding_assignment.update_one({}, {"$set": {"deadline": future(-1)}})
+    res = client.post("/coding_assignment/run", json={"assgn_id": coding, "code": b64("print(1)"), "submit": True},
+                      headers=student).json()
+    assert res["saved"] is False and res["late"] is True and db.submission.count_documents({}) == 0
+
+
+def test_starter_code_roundtrip(client, student, instructor, course):
+    body = {"course_id": course, "week": 1, "assgn_type": "PPA", "language": "python", "question": "q",
+            "public_testcase": [{"input": "1", "output": "1"}], "private_testcase": [{"input": "2", "output": "2"}],
+            "starter_code": "def solve():\n    pass\n", "deadline": "2099-01-01T00:00:00Z"}
+    new_id = client.post("/coding_assignment/create_programming_question", json=body, headers=instructor).json()["db_entry_id"]
+    got = client.get(f"/coding_assignment/get/{new_id}", headers=student).json()
+    assert got["starter_code"].startswith("def solve") and "private_testcase" not in got
+    upd = {**body, "starter_code": "# new"}
+    assert client.put(f"/coding_assignment/update/{new_id}", json=upd, headers=instructor).status_code == 202
+    assert client.get(f"/coding_assignment/get/{new_id}", headers=student).json()["starter_code"] == "# new"
+    contents = client.get(f"/course/get_contents?course_id={course}", headers=student).json()[0]
+    assert contents["coding_assignments"][0]["starter_code"] == "# new"
 
 
 def test_run_endpoint_partial_marks_and_errors(client, student, coding):
-    res = client.post("/coding_assignment/run", json={"assgn_id": coding, "code": b64("print(10)")}, headers=student).json()
+    res = client.post("/coding_assignment/run", json={"assgn_id": coding, "code": b64("print(10)"), "submit": True}, headers=student).json()
     assert res["mark"] == 50
     assert client.post("/coding_assignment/run", json={"assgn_id": coding, "code": "%%%"}, headers=student).status_code == 400
     assert client.post("/coding_assignment/run", json={"assgn_id": "b" * 24, "code": b64("x")}, headers=student).status_code == 404
-    ce = client.post("/coding_assignment/run", json={"assgn_id": coding, "code": b64("def (:")}, headers=student).json()
+    ce = client.post("/coding_assignment/run", json={"assgn_id": coding, "code": b64("def (:"), "submit": True}, headers=student).json()
     assert ce["mark"] == 0 and ce["public_testcases"][0]["error"]
 
 

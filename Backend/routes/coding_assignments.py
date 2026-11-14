@@ -65,7 +65,8 @@ def _decode(code_b64: str) -> str:
         raise bad_request("code must be base64 encoded UTF-8 text") from None
 
 
-def _run(assgn: dict, code: str, staff: bool) -> dict:
+def _run(assgn: dict, code: str, staff: bool, submit: bool) -> dict:
+    """Run = public tests only. Submit = public + private tests (hidden details stripped for students)."""
     public = assgn.get("public_testcase", [])
     private = assgn.get("private_testcase", [])
     try:
@@ -73,24 +74,34 @@ def _run(assgn: dict, code: str, staff: bool) -> dict:
     except UnsupportedLanguage as exc:
         raise bad_request(str(exc)) from None
     public_results = evaluate_tests(assgn["language"], code, public)
-    private_results = evaluate_tests(assgn["language"], code, private)
-    mark = int(round(score(private_results) * 100))
-    return {
+    result = {
         "public_testcases": public_results,
-        "private_testcases": private_results if staff else [hide_details(r) for r in private_results],
+        "private_testcases": [],
         "passed_public_count": f"{sum(r['passed'] for r in public_results)}/{len(public)}",
-        "passed_private_count": f"{sum(r['passed'] for r in private_results)}/{len(private)}",
-        "mark": mark,
+        "submitted": submit,
+        "saved": False,
     }
+    if submit:
+        private_results = evaluate_tests(assgn["language"], code, private)
+        result["private_testcases"] = private_results if staff else [hide_details(r) for r in private_results]
+        result["passed_private_count"] = f"{sum(r['passed'] for r in private_results)}/{len(private)}"
+        result["mark"] = int(round(score(private_results) * 100))
+    return result
 
 
 @coding_assignment.post("/run", responses=responses)
 def run_code(user: RunUser, submission: CodingSubmission):
-    """Run code against public + hidden tests in the sandbox. Students' latest run is saved and graded."""
+    """Run (default) executes the public tests only and saves nothing.
+
+    With ``submit: true`` it also runs the hidden tests; a student's submission is then saved and graded.
+    """
     assgn = get_or_404("coding_assignment", submission.assgn_id, "assignment id")
     code = _decode(submission.code)
-    result = _run(assgn, code, user.is_instructor)
-    if not user.is_instructor and not (assgn["assgn_type"] == "GrPA" and deadline_passed(assgn)):
+    result = _run(assgn, code, user.is_instructor, submission.submit)
+    if submission.submit and not user.is_instructor:
+        if assgn["assgn_type"] == "GrPA" and deadline_passed(assgn):
+            result["late"] = True  # graded work after the deadline is evaluated but not recorded
+            return result
         db.submission.update_one(
             {"assgn_id": assgn["_id"], "user_id": user.user_id},
             {"$set": {"assgn_id": assgn["_id"], "user_id": user.user_id, "answer": [submission.code],

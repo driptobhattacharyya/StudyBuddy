@@ -153,7 +153,7 @@ function CodeEditorDialog({ item, courseId, defaults, onClose, onSaved }) {
     setRunning(true)
     setResult(null)
     try {
-      const r = await runCode(idOf(item), reference)
+      const r = await runCode(idOf(item), reference, { submit: true })
       if (r?.error) toast.error('Runner reported an error', { description: String(r.error) })
       setResult(r)
     } catch (err) {

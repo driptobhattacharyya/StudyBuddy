@@ -29,3 +29,9 @@ export const getWeekContent = (courseId, week) =>
 
 /** POST /user/register_course  body: string[] of course_ids (replaces the user's registered courses) */
 export const registerCourses = (courseIds) => api.post('/user/register_course', courseIds).then((r) => r.data)
+
+/**
+ * GET /user/deadlines -> upcoming assignment + coding deadlines across the caller's courses, soonest first:
+ * [{ assgn_id, kind: 'assignment'|'coding', course_id, course_name, week, assgn_type, title, deadline, submitted }]
+ */
+export const getDeadlines = (limit = 20) => api.get('/user/deadlines', { params: { limit } }).then((r) => r.data)

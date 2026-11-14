@@ -13,8 +13,8 @@ import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Skeleton } from '@/components/ui/Skeleton'
 
-function Deadlines({ courses }) {
-  const { loading, items } = useUpcomingDeadlines(courses)
+function Deadlines() {
+  const { loading, items } = useUpcomingDeadlines()
   return (
     <Card>
       <CardHeader>
@@ -35,12 +35,15 @@ function Deadlines({ courses }) {
         ) : (
           <ul className="divide-y divide-border">
             {items.map((d) => (
-              <li key={d.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+              <li key={d.assgn_id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-fg">
-                    {d.assgn_type} - Week {d.week}
-                  </p>
-                  <p className="truncate text-xs text-muted">{d.course_name || d.course_id}</p>
+                  <Link
+                    to={d.kind === 'coding' ? `/app/courses/${d.course_id}/code/${d.assgn_id}` : `/app/courses/${d.course_id}/assignments`}
+                    className="block truncate text-sm font-medium text-fg hover:text-brand-600 hover:underline dark:hover:text-brand-300"
+                  >
+                    {d.title || `${d.assgn_type} - Week ${d.week}`}
+                  </Link>
+                  <p className="truncate text-xs text-muted">{d.assgn_type} · Week {d.week} · {d.course_name || d.course_id}{d.submitted ? ' · submitted' : ''}</p>
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-sm font-medium text-fg">{format(new Date(d.deadline), 'MMM d')}</p>
@@ -73,7 +76,7 @@ export default function StudentDashboard() {
       <PageHeader title={first ? `Welcome back, ${first}` : 'Welcome back'} description="Pick up where you left off, or ask the AI about anything in your courses." />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <section className="lg:col-span-2" aria-labelledby="courses-h">
+        <section className="min-w-0 lg:col-span-2" aria-labelledby="courses-h">
           <div className="mb-3 flex items-center justify-between">
             <h2 id="courses-h" className="text-lg font-semibold tracking-tight">
               My courses
@@ -104,8 +107,8 @@ export default function StudentDashboard() {
           )}
         </section>
 
-        <div className="space-y-6">
-          <Deadlines courses={myCourses} />
+        <div className="min-w-0 space-y-6">
+          <Deadlines />
 
           <Card className="overflow-hidden">
             <div className="bg-gradient-to-br from-brand-600 to-accent-600 p-5 text-white">

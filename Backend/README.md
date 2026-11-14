@@ -30,7 +30,7 @@ All settings are environment variables (see [`.env.example`](.env.example), load
 | `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `FRONTEND_URL` | Google sign-in; backend redirects to `${FRONTEND_URL}/auth/callback#token=<jwt>` |
 | `INSTRUCTOR_EMAILS`, `ADMIN_EMAILS` | role assignment (everyone else is a student) |
 | `DEMO_MODE`, `SEED_DEMO_ON_STARTUP` | `POST /auth/demo` logins for all three roles, auto-seeding |
-| `AI_PROVIDER` (`gemini`/`openrouter`), `GEMINI_*`, `OPENROUTER_*` | LLM provider and models |
+| `AI_PROVIDER` (`gemini`/`openai`/`openrouter`/`mock`), `GEMINI_*`, `OPENAI_*`, `OPENROUTER_*` | LLM provider and models. `mock` is a deterministic offline provider (also the automatic fallback when `DEMO_MODE=true` and no key is set); `/auth/config` reports the active `ai_provider`. API keys stay in the backend and are redacted from logs |
 | `AI_DAILY_REQUEST_CAP`, `RATE_LIMIT_*` | global daily cap and per-user rate limits |
 | `CODE_RUNNER` (`local`/`judge0`), `CODE_*`, `JUDGE0_*` | code sandbox |
 | `CORS_ORIGINS` | allowed browser origins |
@@ -51,7 +51,8 @@ All settings are environment variables (see [`.env.example`](.env.example), load
 | | `POST/PUT/DELETE /course_material/*`, `/notes/*` | instructor / admin |
 | Assignments | `GET /assignment/get/{id}`, `GET /coding_assignment/get/{id}` | any user (answers stripped for students) |
 | | `POST /assignment/create`, `/create_many_questions`, `PUT/DELETE /assignment/*`, `POST/PUT/DELETE /coding_assignment/*` | instructor / admin |
-| Coding | `POST /coding_assignment/run` | any user, rate limited (students' result is saved + graded) |
+| Coding | `POST /coding_assignment/run` | any user, rate limited. `submit:false` (default) = **Run**: public tests only, nothing saved. `submit:true` = **Submit**: public + hidden tests; a student's attempt is saved and graded. Assignments carry an optional `starter_code` |
+| Deadlines | `GET /user/deadlines` | upcoming assignment + coding deadlines across the caller's courses |
 | | `POST /coding_assignment/{id}/feedback` | any user, AI |
 | Student | `POST /user/submit_answers` (graded instantly), `GET /user/get_marks`, `/user/insights/{course}`, `/user/last_submission`, `/user/flashcards`, `/user/get/course/...`, `POST /user/register_course` | student / any user |
 | Flashcards | `POST /flash_card/create`, `GET/PUT/DELETE /flash_card/*`, `POST /flash_card/generate` | owner only |
@@ -71,7 +72,7 @@ routes/              thin FastAPI routers (sync handlers run in the threadpool)
 models/              pydantic request models; utils/ projections, grading, helpers
 database/db.py       lazy Mongo client proxy (mongomock supported)
 runner/              sandboxed code execution: local (rlimits, tempdir, timeout, stripped env) or Judge0
-ai/                  providers (Gemini via google-genai, OpenRouter via httpx), prompts, structured JSON
+ai/                  providers (Gemini via google-genai, OpenAI/OpenRouter via httpx, offline mock), prompts, structured JSON
                      output with validation + one retry, RAG (chunks + embeddings in Mongo, BM25 fallback),
                      tracing (every call logged to `ai_logs`)
 scripts/             seed_demo.py (idempotent demo data), ingest.py (re-index material for RAG)
@@ -79,7 +80,7 @@ tests/               pytest, fully offline (mongomock, fake AI provider, httpx m
 ```
 
 * **Grading** happens on submission: general questions are marked per question (MSQ = exact set match); coding submissions run against the private tests (mark = passed / total). Week marks are the average of the week's questions.
-* **RAG**: course material is chunked into `rag_chunks`; with a Gemini key chunks get embeddings and are ranked by cosine similarity, otherwise by BM25. Re-index with `python -m scripts.ingest [--course ID] [--no-embed]`. Answers carry citations (title, week).
+* **RAG**: course material is chunked into `rag_chunks`; with a Gemini or OpenAI key chunks get embeddings and are ranked by cosine similarity, otherwise by BM25. Re-index with `python -m scripts.ingest [--course ID] [--no-embed]`. Answers carry citations (title, week).
 * **Observability**: each AI call stores prompt, retrieved passages, model, token estimates, latency, status in `ai_logs`; REST responses include `trace_id`.
 * **Code runner security**: the local runner is best-effort hardening (not a VM). For untrusted public deployments run in the provided non-root container, keep `CODE_MAX_CONCURRENCY` low, or use `CODE_RUNNER=judge0`.
 

@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
         except Exception:  # noqa: BLE001
             log.exception("Demo seeding failed")
     log.info("Study Buddy API started (demo_mode=%s, ai_provider=%s, code_runner=%s)",
-             settings.demo_mode, settings.ai_provider, settings.code_runner)
+             settings.demo_mode, settings.effective_ai_provider, settings.code_runner)
     yield
 
 

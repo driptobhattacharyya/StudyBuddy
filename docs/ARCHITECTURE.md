@@ -28,6 +28,8 @@ flowchart LR
     Mongo[("MongoDB<br/>or mongomock")]
     Gemini["Gemini API<br/>(chat, JSON output, embeddings)"]
     OpenRouter["OpenRouter API<br/>(OpenAI-compatible)"]
+    OpenAI["OpenAI API<br/>(chat, streaming, embeddings)"]
+    Mock["Mock provider<br/>(offline, deterministic)"]
     Google["Google OAuth<br/>(optional)"]
     Judge0["Judge0<br/>(optional)"]
     Local["Local runner<br/>subprocess per run"]
@@ -37,6 +39,8 @@ flowchart LR
     API --> Mongo
     API -->|AI_PROVIDER=gemini| Gemini
     API -->|AI_PROVIDER=openrouter| OpenRouter
+    API -->|AI_PROVIDER=openai| OpenAI
+    API -->|AI_PROVIDER=mock or demo fallback| Mock
     API -->|sign-in code exchange| Google
     API -->|CODE_RUNNER=local| Local
     API -->|CODE_RUNNER=judge0| Judge0
@@ -62,11 +66,13 @@ The frontend is configured at build time with `VITE_API_URL`; REST calls and the
 
 ## AI layer
 
-**Providers.** `AI_PROVIDER` selects `gemini` (the `google-genai` SDK, `GEMINI_MODEL`) or `openrouter` (an OpenAI-compatible HTTP API via `httpx`, `OPENROUTER_MODEL`). Both implement the same generate and stream interface.
+**Providers.** `AI_PROVIDER` selects `gemini` (the `google-genai` SDK, `GEMINI_MODEL`) or `openrouter` (an OpenAI-compatible HTTP API via `httpx`, `OPENROUTER_MODEL`), `openai` (the same httpx client with `OPENAI_MODEL`; real token usage is read from the response / final stream chunk, and `OPENAI_EMBEDDING_MODEL` powers retrieval) or `mock` (a deterministic offline provider in `ai/mock.py`, selected automatically when `DEMO_MODE` is on and no key is configured). All implement the same generate and stream interface. API keys exist only in the backend environment and are redacted from logs; they never appear in `/auth/config`, traces or `ai_logs`.
+
+**Run vs Submit.** `POST /coding_assignment/run` with `submit:false` executes the public tests only and stores nothing; `submit:true` also runs the hidden tests, then records and grades a student's attempt. `GET /user/deadlines` feeds the student dashboard.
 
 **Structured output.** JSON responses (summaries, generated questions, the assignment generator) are parsed and validated against pydantic models. On a validation failure the call is retried once with the error included in the prompt.
 
-**RAG pipeline.** Course material and notes are split on paragraph boundaries into chunks of about 1100 characters with 150 characters of overlap, stored in `rag_chunks`. When an embedding model is available (a Gemini key is set), chunks carry embeddings and are ranked by cosine similarity in Python. Otherwise, or when embeddings are missing, retrieval falls back to BM25 keyword ranking. The top `RAG_TOP_K` chunks go into the prompt. Re-index with `python -m scripts.ingest [--course ID] [--no-embed]`.
+**RAG pipeline.** Course material and notes are split on paragraph boundaries into chunks of about 1100 characters with 150 characters of overlap, stored in `rag_chunks`. When an embedding model is available (a Gemini or OpenAI key is set), chunks carry embeddings and are ranked by cosine similarity in Python. Otherwise, or when embeddings are missing, retrieval falls back to BM25 keyword ranking. The top `RAG_TOP_K` chunks go into the prompt. Re-index with `python -m scripts.ingest [--course ID] [--no-embed]`.
 
 **Citations.** Responses carry citations (note title and week). The WebSocket stream sends them in a metadata frame.
 
@@ -79,7 +85,7 @@ sequenceDiagram
     participant W as WebSocket /search_generate
     participant R as Rate limiter and daily cap
     participant M as MongoDB
-    participant P as AI provider (Gemini or OpenRouter)
+    participant P as AI provider (Gemini, OpenAI, OpenRouter or mock)
     U->>W: connect ?token=JWT, send {query, course_id, week}
     W->>W: validate token (invalid: close 4401)
     W->>R: per-user minute limit, global AI_DAILY_REQUEST_CAP

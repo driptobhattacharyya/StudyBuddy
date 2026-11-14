@@ -1,3 +1,4 @@
+import { cloneElement } from 'react'
 import * as Menu from '@radix-ui/react-dropdown-menu'
 import { cn } from '@/lib/cn'
 
@@ -24,7 +25,7 @@ export function DropdownMenuContent({ className, align = 'end', sideOffset = 8, 
   )
 }
 
-export function DropdownMenuItem({ className, icon: Icon, danger, children, ...props }) {
+export function DropdownMenuItem({ className, icon: Icon, danger, children, asChild, ...props }) {
   return (
     <Menu.Item
       className={cn(
@@ -33,10 +34,18 @@ export function DropdownMenuItem({ className, icon: Icon, danger, children, ...p
         danger ? 'text-red-600 dark:text-red-400' : 'text-fg',
         className,
       )}
+      asChild={asChild}
       {...props}
     >
-      {Icon && <Icon className="size-4 shrink-0 opacity-80" aria-hidden="true" />}
-      {children}
+      {/* With asChild, Radix needs exactly one child element: the icon goes inside it instead. */}
+      {asChild ? (
+        cloneElement(children, {}, Icon && <Icon className="size-4 shrink-0 opacity-80" aria-hidden="true" />, children.props.children)
+      ) : (
+        <>
+          {Icon && <Icon className="size-4 shrink-0 opacity-80" aria-hidden="true" />}
+          {children}
+        </>
+      )}
     </Menu.Item>
   )
 }

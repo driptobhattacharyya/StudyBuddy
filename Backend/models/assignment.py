@@ -99,6 +99,7 @@ class ProgrammingBase(BaseModel):
     language: CodeLanguage
     public_testcase: List[TestCase] = Field(min_length=1)
     private_testcase: List[TestCase] = Field(min_length=1)
+    starter_code: str = Field("", max_length=20000, description="Initial code shown in the student's editor")
     assgn_type: AssignmentType
     week: int = Field(ge=0, le=12)
     deadline: Deadline
@@ -130,6 +131,8 @@ class AssignmentSubmissionForm(BaseModel):
 class CodingSubmission(BaseModel):
     assgn_id: str = Field(min_length=24, max_length=24)
     code: str = Field(description="Base64 encoded source code", max_length=200_000)
+    submit: bool = Field(False, description="false = Run (public tests only, nothing saved); true = Submit (public + "
+                                            "private tests, saved and graded)")
 
 
 class LastSubmission(BaseModel):

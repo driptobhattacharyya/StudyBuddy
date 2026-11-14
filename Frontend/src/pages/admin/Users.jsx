@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Search, Users as UsersIcon } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
 import { getUsers, setUserRole } from '@/lib/services/admin'
 import { getErrorMessage } from '@/lib/api'
 import { toast } from '@/lib/toast'
@@ -31,12 +32,13 @@ const normalise = (u, i) => ({
   courses: Number(u?.courses_count ?? u?.course_count ?? u?.courses ?? 0) || 0,
 })
 
-function RoleSelect({ user, disabled, onChange }) {
+function RoleSelect({ user, disabled, onChange, self }) {
   return (
     <Select
       aria-label={`Role for ${user.name}`}
       value={user.role}
-      disabled={disabled}
+      disabled={disabled || self}
+      title={self ? 'You cannot change your own role' : undefined}
       onChange={(e) => onChange(e.target.value)}
       className="h-9 w-36 text-sm"
     >
@@ -61,6 +63,8 @@ function SkeletonRows() {
 }
 
 export default function AdminUsers() {
+  const { user: me } = useAuth()
+  const isMe = (u) => !!me?.email && u.email.toLowerCase() === me.email.toLowerCase()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -91,8 +95,14 @@ export default function AdminUsers() {
     setRole(role)
     setSaving((s) => ({ ...s, [user.email]: true }))
     try {
-      await setUserRole(user.email, role)
-      toast.success(`${user.name} is now ${ROLE_LABEL[role] ?? role}`)
+      const res = await setUserRole(user.email, role)
+      const effective = res?.role ?? role
+      if (effective !== role) {
+        setRole(effective)
+        toast.info(`${user.name} stays ${ROLE_LABEL[effective] ?? effective}`, { description: res?.note || 'The role is pinned by the server configuration.' })
+      } else {
+        toast.success(`${user.name} is now ${ROLE_LABEL[role] ?? role}`)
+      }
     } catch (e) {
       setRole(previous)
       toast.error('Could not change role', { description: getErrorMessage(e) })
@@ -184,7 +194,7 @@ export default function AdminUsers() {
                         <div className="flex items-center gap-3">
                           <Avatar name={u.name} size="sm" />
                           <div className="min-w-0">
-                            <p className="truncate font-medium text-fg">{u.name}</p>
+                            <p className="truncate font-medium text-fg">{u.name}{isMe(u) && <span className="ml-1.5 text-xs font-normal text-muted">(you)</span>}</p>
                             <p className="truncate text-xs text-muted">{u.email}</p>
                           </div>
                         </div>
@@ -194,7 +204,7 @@ export default function AdminUsers() {
                       </td>
                       <td className="px-5 py-3 text-right tabular-nums">{u.courses}</td>
                       <td className="px-5 py-3">
-                        <RoleSelect user={u} disabled={!!saving[u.email]} onChange={(r) => requestRole(u, r)} />
+                        <RoleSelect user={u} self={isMe(u)} disabled={!!saving[u.email]} onChange={(r) => requestRole(u, r)} />
                       </td>
                     </tr>
                   ))}
@@ -209,7 +219,7 @@ export default function AdminUsers() {
                   <div className="flex items-center gap-3">
                     <Avatar name={u.name} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-fg">{u.name}</p>
+                      <p className="truncate font-medium text-fg">{u.name}{isMe(u) && <span className="ml-1.5 text-xs font-normal text-muted">(you)</span>}</p>
                       <p className="truncate text-xs text-muted">{u.email}</p>
                     </div>
                   </div>
@@ -218,7 +228,7 @@ export default function AdminUsers() {
                       <Badge variant={ROLE_VARIANT[u.role] ?? 'neutral'}>{ROLE_LABEL[u.role] ?? u.role}</Badge>
                       <span className="text-xs text-muted">{u.courses} {u.courses === 1 ? 'course' : 'courses'}</span>
                     </div>
-                    <RoleSelect user={u} disabled={!!saving[u.email]} onChange={(r) => requestRole(u, r)} />
+                    <RoleSelect user={u} self={isMe(u)} disabled={!!saving[u.email]} onChange={(r) => requestRole(u, r)} />
                   </div>
                 </li>
               ))}

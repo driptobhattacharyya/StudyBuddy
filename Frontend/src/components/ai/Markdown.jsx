@@ -1,9 +1,45 @@
 import { memo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
+import { createLowlight } from 'lowlight'
+// Register only the languages we show (rehype-highlight would bundle the whole "common" set, ~200 kB more).
+import python from 'highlight.js/lib/languages/python'
+import javascript from 'highlight.js/lib/languages/javascript'
+import java from 'highlight.js/lib/languages/java'
+import json from 'highlight.js/lib/languages/json'
+import bash from 'highlight.js/lib/languages/bash'
+import sql from 'highlight.js/lib/languages/sql'
+import xml from 'highlight.js/lib/languages/xml'
+import cpp from 'highlight.js/lib/languages/cpp'
 import { Check, Copy } from 'lucide-react'
 import { cn } from '@/lib/cn'
+
+const LANGUAGES = { python, javascript, js: javascript, java, json, bash, sh: bash, sql, xml, html: xml, cpp, c: cpp }
+const lowlight = createLowlight(LANGUAGES)
+
+const hastText = (n) => (n.type === 'text' ? n.value : (n.children ?? []).map(hastText).join(''))
+
+/** Minimal rehype plugin: highlight `pre > code` blocks with the languages registered above. */
+function rehypeLowlight() {
+  const walk = (node, parent) => {
+    if (node.type === 'element' && node.tagName === 'code' && parent?.tagName === 'pre') {
+      const cls = Array.isArray(node.properties?.className) ? node.properties.className : []
+      const lang = String(cls.find((c) => String(c).startsWith('language-')) ?? '').slice(9)
+      const text = hastText(node)
+      try {
+        const result = lang && lowlight.registered(lang) ? lowlight.highlight(lang, text) : lowlight.highlightAuto(text)
+        node.properties = { ...node.properties, className: ['hljs', ...cls] }
+        if (result.children.length) node.children = result.children
+      } catch {
+        /* leave the block unhighlighted */
+      }
+      return
+    }
+    node.children?.forEach((c) => walk(c, node))
+  }
+  return (tree) => walk(tree, null)
+}
+const REHYPE_PLUGINS = [rehypeLowlight]
 
 function nodeText(node) {
   if (node == null || typeof node === 'boolean') return ''
@@ -62,7 +98,7 @@ export const Markdown = memo(function Markdown({ children, className }) {
         className,
       )}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={REHYPE_PLUGINS} components={components}>
         {children || ''}
       </ReactMarkdown>
     </div>

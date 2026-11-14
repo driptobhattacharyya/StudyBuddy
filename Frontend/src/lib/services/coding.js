@@ -11,7 +11,7 @@ export const encodeCode = (code) => {
 /**
  * Coding assignments. Shape:
  * { _id, question, language: 'python'|'java'|'js'|'sql', public_testcase: [{input, output}],
- *   private_testcase (instructor only), assgn_type: 'PPA'|'GrPA', course_id, week, evaluated, deadline }
+ *   private_testcase (instructor only), starter_code, assgn_type: 'PPA'|'GrPA', course_id, week, evaluated, deadline }
  */
 
 /** GET /course/get_all_assignment?course_id=&week=&assgn_type= -> CodingAssignment[] (note: week is required, 1..12) */
@@ -32,17 +32,16 @@ export const updateCodingAssignment = (id, assignment) => api.put(`/coding_assig
 export const deleteCodingAssignment = (id) => api.delete(`/coding_assignment/delete/${id}`).then((r) => r.data)
 
 /**
- * POST /coding_assignment/run  { assgn_id, code(base64) }
- * -> { public_testcases: Result[], private_testcases: Result[], passed_public_count: '2/3',
- *      passed_private_count: '4/5', mark: number } or { error }
- * Result: { input, expected(_output), output, passed | status: 'Pass'|'Fail', error?, time_ms? }
+ * POST /coding_assignment/run  { assgn_id, code(base64), submit }
+ * - submit=false (Run): public tests only, nothing is saved.
+ *   -> { public_testcases: Result[], private_testcases: [], passed_public_count: '2/3', submitted: false, saved: false }
+ * - submit=true (Submit): public + hidden tests; a student's submission is saved and graded.
+ *   -> { ..., private_testcases: Result[], passed_private_count: '4/5', mark: 0..100, submitted: true, saved: bool, late?: true }
+ * Result: { input, expected(_output), output, passed | status: 'Pass'|'Fail', error?, time_ms? } (hidden tests: no input/expected)
  */
-export const runCode = (assgnId, code) =>
-  api.post('/coding_assignment/run', { assgn_id: assgnId, code: encodeCode(code) }).then((r) => r.data)
+export const runCode = (assgnId, code, { submit = false } = {}) =>
+  api.post('/coding_assignment/run', { assgn_id: assgnId, code: encodeCode(code), submit }).then((r) => r.data)
 
-/**
- * POST /coding_assignment/{id}/feedback { assgn_id, code(base64) } -> { feedback (markdown), trace_id }
- * (the backend decodes base64 like /run; ai.getCodeFeedback sends raw code - prefer this one).
- */
-export const requestCodeFeedback = (assgnId, code) =>
+/** POST /coding_assignment/{id}/feedback { assgn_id, code(base64) } -> { feedback (markdown), trace_id } */
+export const getCodeFeedback = (assgnId, code) =>
   api.post(`/coding_assignment/${assgnId}/feedback`, { assgn_id: assgnId, code: encodeCode(code) }).then((r) => r.data)

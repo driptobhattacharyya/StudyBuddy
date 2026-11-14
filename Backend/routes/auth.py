@@ -46,7 +46,8 @@ def _client_ip(request: Request) -> str:
 async def auth_config():
     """Public: tells the frontend which login options to show."""
     settings = get_settings()
-    return {"demo_mode": settings.demo_mode, "google_login": settings.google_login_enabled}
+    return {"demo_mode": settings.demo_mode, "google_login": settings.google_login_enabled,
+            "ai_provider": settings.effective_ai_provider}
 
 
 @auth.post("/demo", response_model=TokenResponse, responses=responses)

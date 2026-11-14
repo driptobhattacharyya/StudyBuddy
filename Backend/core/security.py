@@ -40,6 +40,8 @@ def resolve_role(email: str, roles: list[str] | None) -> str:
         return ADMIN
     if e in settings.instructor_emails_set or (roles and "instructor" in roles):
         return INSTRUCTOR
+    if roles:  # an explicit stored role (e.g. changed by an admin) always wins over the demo defaults
+        return STUDENT
     if settings.demo_mode and e in DEMO_EMAILS.values():
         return next(r for r, m in DEMO_EMAILS.items() if m == e)
     return STUDENT

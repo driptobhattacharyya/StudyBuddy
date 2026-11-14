@@ -9,15 +9,16 @@ Live demo: <!-- DEMO_URL -->
 | | |
 |---|---|
 | ![Landing page](docs/screenshots/landing.png) | ![Student dashboard](docs/screenshots/student-dashboard.png) |
-| ![Notes](docs/screenshots/notes.png) | ![Code editor](docs/screenshots/code-editor.png) |
-| ![AI chat](docs/screenshots/chat.png) | ![Admin AI usage](docs/screenshots/admin-ai-usage.png) |
+| ![Notes with AI summary](docs/screenshots/notes.png) | ![Code editor (dark)](docs/screenshots/code-editor.png) |
+| ![Course chat with citations](docs/screenshots/chat.png) | ![Flashcards study mode](docs/screenshots/flashcards.png) |
+| ![Instructor gradebook](docs/screenshots/instructor-gradebook.png) | ![Admin AI usage](docs/screenshots/admin-ai-usage.png) |
 
 ## Features
 
 ### Students
 * Browse courses, weekly notes and course material.
 * Answer MCQ, MSQ and numeric assignments; answers are graded on submission with per-question marks.
-* Solve coding assignments in an in-browser editor (Python, JavaScript, Java). Each run is checked against public and hidden tests.
+* Solve coding assignments in an in-browser editor (Python, JavaScript, Java) with instructor-provided starter code. **Run** checks your code against the public tests only and saves nothing; **Submit** also runs the hidden tests, then saves and grades the attempt.
 * Personal flashcards per course.
 * Track marks and per-topic insights.
 
@@ -43,9 +44,9 @@ Live demo: <!-- DEMO_URL -->
 
 * **Backend:** Python 3.12, FastAPI, pydantic, MongoDB (pymongo), PyJWT, httpx, google-genai.
 * **Frontend:** React 19, Vite, React Router, Tailwind CSS, Monaco editor, react-markdown.
-* **AI:** Google Gemini (default) or OpenRouter (OpenAI-compatible).
+* **AI:** Google Gemini (default), OpenAI, OpenRouter, or an offline mock provider (`AI_PROVIDER=mock`) that needs no key.
 * **Infrastructure:** Docker, docker compose, nginx, Render blueprint.
-* **Testing and CI:** pytest (offline, using mongomock), ESLint, GitHub Actions.
+* **Testing and CI:** pytest (offline, using mongomock), ESLint, a Playwright end-to-end smoke suite (`Frontend/e2e`, mock AI), GitHub Actions.
 
 ## Architecture
 
@@ -97,7 +98,8 @@ All backend settings are environment variables (template: [`Backend/.env.example
 | `INSTRUCTOR_EMAILS`, `ADMIN_EMAILS` | empty | Comma-separated emails that receive those roles on sign-in |
 | `DEMO_MODE` | `false` | Enables one-click demo logins (`POST /auth/demo`) |
 | `SEED_DEMO_ON_STARTUP` | `false` | Seeds the demo dataset on start-up (idempotent) |
-| `AI_PROVIDER` | `gemini` | `gemini` or `openrouter` |
+| `AI_PROVIDER` | `gemini` | `gemini`, `openai`, `openrouter` or `mock`. `mock` returns deterministic, context-aware canned answers with no network access; it is used automatically when `DEMO_MODE=true` and no API key is set (the UI then shows an "AI: mock responses" badge) |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | empty, `gpt-4o-mini` | OpenAI access (backend only: the key is never sent to the browser or written to logs/traces); `OPENAI_BASE_URL` and `OPENAI_EMBEDDING_MODEL` (`text-embedding-3-small`, used for retrieval) are also configurable |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | empty, `gemini-2.5-flash` | Gemini access; the key also enables embeddings for retrieval |
 | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | empty, a free Llama model | OpenRouter access |
 | `AI_DAILY_REQUEST_CAP` | `500` | Global limit on AI calls per UTC day |
@@ -112,6 +114,10 @@ All backend settings are environment variables (template: [`Backend/.env.example
 ```bash
 cd Backend && pip install -r requirements-dev.txt && pytest -q
 cd Frontend && npm run lint && npm run build
+
+# end-to-end smoke tests (Playwright), against a running backend and a built frontend
+cd Backend && MONGODB_URI=mongomock:// DEMO_MODE=true SEED_DEMO_ON_STARTUP=true AI_PROVIDER=mock uvicorn main:app --port 8000 &
+cd Frontend && npm run build && npx playwright install chromium && npm run e2e
 ```
 
 The backend suite runs offline: it uses mongomock, a fake AI provider and mocked HTTP transports. The runner tests need `node` and `javac` on the PATH. CI runs both backend and frontend jobs on every push and pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
@@ -120,7 +126,7 @@ The backend suite runs offline: it uses mongomock, a fake AI provider and mocked
 
 [`render.yaml`](render.yaml) is a Render Blueprint with two services:
 
-* `study-buddy-api`: the backend as a Docker web service on the free plan, with health check `/health`. Secrets (`MONGODB_URI`, `SECRET_KEY`, `GEMINI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `FRONTEND_URL`, `CORS_ORIGINS`) are entered in the Render dashboard.
+* `study-buddy-api`: the backend as a Docker web service on the free plan, with health check `/health`. Secrets (`MONGODB_URI`, `SECRET_KEY`, `GEMINI_API_KEY` or `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `FRONTEND_URL`, `CORS_ORIGINS`) are entered in the Render dashboard.
 * `study-buddy-web`: the frontend as a static site, with a rewrite of all routes to `index.html`. `VITE_API_URL` must match the API's public URL.
 
 Create the Blueprint from the repository in the Render dashboard, then fill in the secrets.

@@ -5,7 +5,7 @@ from core.security import create_access_token, resolve_role
 
 
 def test_auth_config_is_public(client):
-    assert client.get("/auth/config").json() == {"demo_mode": True, "google_login": False}
+    assert client.get("/auth/config").json() == {"demo_mode": True, "google_login": False, "ai_provider": "mock"}
 
 
 @pytest.mark.parametrize("role", ["student", "instructor", "admin"])
@@ -110,3 +110,33 @@ def test_validation_error_shape_and_no_stack_traces(client, instructor):
     assert res.status_code == 422
     res = client.get("/assignment/get/not-an-id", headers=instructor)
     assert res.status_code == 422 and "detail" in res.json()
+
+
+def test_admin_cannot_demote_self_and_role_changes_stick(client, admin, student, db):
+    assert client.patch("/admin/users/demo.admin@studybuddy.dev/role", json={"role": "student"}, headers=admin).status_code == 400
+    # demoting / promoting a demo user is honoured (not silently reset to the demo default)
+    r = client.patch("/admin/users/demo.student@studybuddy.dev/role", json={"role": "instructor"}, headers=admin)
+    assert r.json()["role"] == "instructor" and r.json()["note"] is None
+    assert client.get("/auth/me", headers=student).json()["role"] == "instructor"
+    client.patch("/admin/users/demo.student@studybuddy.dev/role", json={"role": "student"}, headers=admin)
+    assert client.get("/auth/me", headers=student).json()["role"] == "student"
+
+
+def test_env_pinned_role_is_reported(client, admin, monkeypatch):
+    from core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "instructor_emails", "demo.student@studybuddy.dev")
+    client.post("/auth/demo", json={"role": "student"})
+    r = client.patch("/admin/users/demo.student@studybuddy.dev/role", json={"role": "student"}, headers=admin)
+    assert r.json()["role"] == "instructor" and "pinned" in r.json()["note"]
+
+
+def test_deadlines_endpoint(client, student, instructor, db, coding, questions):
+    rows = client.get("/user/deadlines", headers=student).json()
+    assert rows == []  # student not enrolled in T101 yet
+    db.user.update_one({"email": "demo.student@studybuddy.dev"}, {"$set": {"courses": ["T101"]}})
+    rows = client.get("/user/deadlines", headers=student).json()
+    kinds = {r["kind"] for r in rows}
+    assert kinds == {"assignment", "coding"} and len(rows) == 4  # the past-deadline question is excluded
+    assert rows == sorted(rows, key=lambda r: r["deadline"]) and rows[0]["course_name"] == "Testing 101"
+    assert client.get("/user/deadlines", headers={}).status_code == 401

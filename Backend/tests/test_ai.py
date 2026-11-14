@@ -121,7 +121,8 @@ def test_provider_failure_is_friendly(client, student, fake_ai):
     assert res.status_code == 502 and "temporarily" in res.json()["detail"]
 
 
-def test_ai_not_configured_gives_503(client, student):
+def test_ai_not_configured_gives_503(client, student, monkeypatch):
+    monkeypatch.setattr(get_settings(), "demo_mode", False)  # demo mode would fall back to the mock provider
     res = client.post("/user/generate", json={"query": "hi"}, headers=student)
     assert res.status_code == 503
 
@@ -307,6 +308,7 @@ def test_openrouter_async_and_errors():
 def test_provider_factory(monkeypatch):
     from ai.errors import AINotConfigured
 
+    monkeypatch.setattr(get_settings(), "demo_mode", False)
     with pytest.raises(AINotConfigured):
         providers.get_provider()
     monkeypatch.setattr(get_settings(), "ai_provider", "openrouter")

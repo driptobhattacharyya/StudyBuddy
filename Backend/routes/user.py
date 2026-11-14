@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import List
 
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Path, Query
 from fastapi.concurrency import run_in_threadpool
 
@@ -25,6 +26,35 @@ def get_current_user(current_user: CurrentUser):
         "picture": current_user.picture, "role": current_user.role, "roles": [current_user.role],
         "courses": current_user.courses or [], "disabled": current_user.disabled,
     }
+
+
+def _plain(text: str, n: int = 90) -> str:
+    text = " ".join(str(text or "").replace("*", "").replace("`", "").replace("#", "").split())
+    return text if len(text) <= n else text[: n - 1].rstrip() + "…"
+
+
+@user.get("/deadlines", responses=responses)
+def upcoming_deadlines(current_user: CurrentUser, limit: int = Query(20, ge=1, le=100)):
+    """Upcoming assignment + coding deadlines across the caller's courses, soonest first."""
+    course_ids = current_user.courses or []
+    if not course_ids:
+        return []
+    names = {c["course_id"]: c.get("course_name") for c in db.course.find({"course_id": {"$in": course_ids}})}
+    now = datetime.now(timezone.utc)
+    items = []
+    for kind, coll in (("assignment", db.assignment), ("coding", db.coding_assignment)):
+        for a in coll.find({"course_id": {"$in": course_ids}, "deadline": {"$gte": now}}):
+            items.append({
+                "assgn_id": str(a["_id"]), "kind": kind, "course_id": a["course_id"],
+                "course_name": names.get(a["course_id"]), "week": a.get("week"), "assgn_type": a.get("assgn_type"),
+                "title": _plain(a.get("question")), "deadline": a["deadline"].isoformat(),
+            })
+    submitted = {str(s["assgn_id"]) for s in db.submission.find(
+        {"user_id": current_user.user_id, "assgn_id": {"$in": [ObjectId(i["assgn_id"]) for i in items]}})}
+    for i in items:
+        i["submitted"] = i["assgn_id"] in submitted
+    items.sort(key=lambda i: i["deadline"])
+    return items[:limit]
 
 
 @user.get("/get/course/{course_id}", responses=responses)

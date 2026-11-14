@@ -30,6 +30,7 @@ class Trace:
              "snippet": (r.get("text") or r.get("snippet") or "")[:300]}
             for r in (retrieved or [])
         ]
+        providers.usage_var.set(None)  # real provider-reported usage (if any) is recorded by the provider
         self.started = time.monotonic()
         self.latency_ms = 0
         self.tokens_in = estimate_tokens(system + prompt)
@@ -45,7 +46,10 @@ class Trace:
         provider = providers.get_provider()
         self.latency_ms = int((time.monotonic() - self.started) * 1000)
         self.tokens_out = estimate_tokens(output)
-        free = provider.model.endswith(":free")
+        usage = providers.usage_var.get()
+        if usage:
+            self.tokens_in, self.tokens_out = usage["in"], usage["out"]
+        free = provider.model.endswith(":free") or provider.name == "mock"
         cost = 0.0 if free else (self.tokens_in * s.ai_cost_in_per_mtok + self.tokens_out * s.ai_cost_out_per_mtok) / 1e6
         return {
             "_id": self.id, "user": self.user, "feature": self.feature, "provider": provider.name,

@@ -1,16 +1,14 @@
 /**
  * Coding problem page. Replaces legacy Code/Code.jsx.
- * Endpoints: GET /coding_assignment/get/{id}; POST /coding_assignment/run { assgn_id, code(base64) } ->
- * { public_testcases[], private_testcases[], passed_public_count, passed_private_count, mark(0-100) };
- * POST /coding_assignment/{id}/feedback { assgn_id, code(base64) } -> { feedback, trace_id }; WS /generate for streamed hints.
+ * Endpoints: GET /coding_assignment/get/{id} (incl. starter_code); POST /coding_assignment/run { assgn_id, code(base64), submit }:
+ * Run (submit=false) = public tests only, nothing saved; Submit (submit=true) = public + hidden tests, saved and graded.
+ * POST /coding_assignment/{id}/feedback { assgn_id, code(base64) } -> { feedback, trace_id }; POST /ai/hint { assgn_id, code } -> { hint }.
  */
 import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { format, isPast } from 'date-fns'
-import { AlertCircle, ArrowLeft, Bot, CheckCircle2, Clock, FileText, Lightbulb, Play, RefreshCw, Send, Terminal, XCircle } from 'lucide-react'
-import { getCodingAssignment, requestCodeFeedback, runCode } from '@/lib/services/coding'
-import { buildHintQuery, WS_ASSISTANT } from '@/lib/services/ai'
-import { useAIStream } from '@/lib/stream'
+import { AlertCircle, ArrowLeft, Bot, CheckCircle2, Clock, FileText, Play, RefreshCw, Send, Terminal, XCircle } from 'lucide-react'
+import { getCodeFeedback, getCodingAssignment, runCode } from '@/lib/services/coding'
 import { getErrorMessage } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/cn'
@@ -23,7 +21,7 @@ import { Dialog, DialogClose } from '@/components/ui/Dialog'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Select } from '@/components/ui/Field'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { Markdown, UnderTheHood } from '@/components/ai'
+import { HintBox, Markdown, UnderTheHood } from '@/components/ai'
 
 const CodeMonaco = lazy(() => import('@/components/CodeMonaco'))
 
@@ -102,13 +100,12 @@ function ResultsTable({ title, rows }) {
   )
 }
 
-function AIHelp({ problem, getCode, assgnId }) {
-  const hint = useAIStream(WS_ASSISTANT)
+function AIHelp({ getCode, assgnId }) {
   const [fb, setFb] = useState({ loading: false, data: null })
   const askFeedback = async () => {
     setFb({ loading: true, data: null })
     try {
-      setFb({ loading: false, data: await requestCodeFeedback(assgnId, getCode()) })
+      setFb({ loading: false, data: await getCodeFeedback(assgnId, getCode()) })
     } catch (e) {
       toast.error('AI feedback failed', { description: getErrorMessage(e) })
       setFb({ loading: false, data: null })
@@ -118,20 +115,10 @@ function AIHelp({ problem, getCode, assgnId }) {
     <section aria-labelledby="ai-help" className="rounded-xl border border-border bg-surface-2/40 p-4">
       <h3 id="ai-help" className="flex items-center gap-2 text-sm font-semibold"><Bot className="size-4 text-brand-500" aria-hidden="true" /> AI help</h3>
       <p className="mt-1 text-xs text-muted">Hints nudge you without giving away the solution.</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => (hint.isStreaming ? hint.stop() : hint.send({ query: buildHintQuery({ question: problem.question, code: getCode() }) }))}>
-          <Lightbulb className="size-4" /> {hint.isStreaming ? 'Stop' : 'Hint'}
-        </Button>
+      <div className="mt-3 flex flex-wrap items-start gap-2">
+        <HintBox assgnId={assgnId} getCode={getCode} />
         <Button size="sm" variant="outline" loading={fb.loading} onClick={askFeedback}><Bot className="size-4" /> AI feedback on my code</Button>
       </div>
-      {(hint.text || hint.error) && (
-        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 dark:border-amber-500/30 dark:bg-amber-500/10" aria-live="polite">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Hint</p>
-          {hint.text && <Markdown className="prose-sm">{hint.text}</Markdown>}
-          {hint.error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{hint.error}</p>}
-          {hint.status === 'done' && hint.meta?.trace_id && <div className="flex justify-end"><UnderTheHood traceId={hint.meta.trace_id} /></div>}
-        </div>
-      )}
       {fb.loading && <div className="mt-3 space-y-2" role="status" aria-label="Reviewing your code"><Skeleton className="h-4" /><Skeleton className="h-4 w-4/5" /><Skeleton className="h-16" /></div>}
       {fb.data && (
         <div className="mt-3 rounded-lg border border-border bg-surface px-3 py-2">
@@ -167,7 +154,7 @@ function Problem({ problem, assgnId, getCode }) {
           </div>
         </section>
       )}
-      <AIHelp problem={problem} getCode={getCode} assgnId={assgnId} />
+      <AIHelp getCode={getCode} assgnId={assgnId} />
     </div>
   )
 }
@@ -215,7 +202,8 @@ export default function StudentCodeEditor() {
 
   const problem = state.problem
   const fixedLang = problem ? normLang(problem.language) : null
-  const code = codes[lang] ?? STARTERS[lang] ?? ''
+  const starter = problem && normLang(problem.language) === lang && problem.starter_code ? problem.starter_code : STARTERS[lang]
+  const code = codes[lang] ?? starter ?? ''
   const codeRef = useRef(code)
   useEffect(() => { codeRef.current = code }, [code])
   const getCode = () => code
@@ -225,15 +213,18 @@ export default function StudentCodeEditor() {
     setRun({ busy: kind, result: null, kind })
     setTab('results')
     try {
-      const res = await runCode(assignmentId, codeRef.current)
+      const res = await runCode(assignmentId, codeRef.current, { submit: kind === 'submit' })
       if (res.error) throw new Error(res.error)
       const pub = (res.public_testcases ?? []).map(norm)
       const priv = (res.private_testcases ?? []).map(norm)
       const all = [...pub, ...priv]
       const passed = all.filter((r) => r.passed).length
-      setCodeStatus(assignmentId, { state: all.length && passed === all.length ? 'solved' : 'attempted', passed, total: all.length, mark: res.mark })
+      if (kind === 'submit') setCodeStatus(assignmentId, { state: all.length && passed === all.length ? 'solved' : 'attempted', passed, total: all.length, mark: res.mark })
       setRun({ busy: null, kind, result: { pub, priv, mark: res.mark, passedPriv: res.passed_private_count, passedPub: res.passed_public_count } })
-      if (kind === 'submit') toast.success('Submitted', { description: `Score ${Math.round(res.mark ?? 0)}% - ${res.passed_private_count ?? ''} hidden tests passed` })
+      if (kind === 'submit') {
+        if (res.late) toast.error('Deadline passed', { description: 'Your attempt was evaluated but not recorded.' })
+        else toast.success('Submitted', { description: `Score ${Math.round(res.mark ?? 0)}% - ${res.passed_private_count ?? ''} hidden tests passed` })
+      }
     } catch (e) {
       const msg = getErrorMessage(e)
       toast.error(kind === 'submit' ? 'Submission failed' : 'Run failed', { description: msg })
@@ -263,11 +254,13 @@ export default function StudentCodeEditor() {
             {problem.deadline && <Badge variant={closed ? 'danger' : 'neutral'}><Clock className="size-3" /> {closed ? 'Closed' : `Due ${format(new Date(problem.deadline), 'MMM d, p')}`}</Badge>}
           </div>
         </div>
-        <Select aria-label="Language" className="h-9 w-32 sm:w-36" value={lang} onChange={(e) => setLang(e.target.value)}>
-          {LANGUAGES.map((l) => <option key={l} value={l} disabled={!!fixedLang && fixedLang !== l}>{LANG_LABEL[l]}{fixedLang && fixedLang !== l ? ' (n/a)' : ''}</option>)}
-        </Select>
-        <Button variant="outline" size="sm" onClick={() => execute('run')} loading={run.busy === 'run'} disabled={!!run.busy} title="Run public tests (Ctrl/Cmd+Enter)"><Play className="size-4" /> Run</Button>
-        <Button size="sm" onClick={() => setConfirm(true)} loading={run.busy === 'submit'} disabled={!!run.busy || closed}><Send className="size-4" /> Submit</Button>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <Select aria-label="Language" className="h-9 min-w-0 flex-1 sm:w-36 sm:flex-none" value={lang} onChange={(e) => setLang(e.target.value)}>
+            {LANGUAGES.map((l) => <option key={l} value={l} disabled={!!fixedLang && fixedLang !== l}>{LANG_LABEL[l]}{fixedLang && fixedLang !== l ? ' (n/a)' : ''}</option>)}
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => execute('run')} loading={run.busy === 'run'} disabled={!!run.busy} title="Run public tests (Ctrl/Cmd+Enter)"><Play className="size-4" /> Run</Button>
+          <Button size="sm" onClick={() => setConfirm(true)} loading={run.busy === 'submit'} disabled={!!run.busy || closed}><Send className="size-4" /> Submit</Button>
+        </div>
       </header>
 
       <div role="tablist" aria-label="Panels" className="flex border-b border-border bg-surface lg:hidden">
