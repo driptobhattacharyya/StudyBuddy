@@ -1,0 +1,51 @@
+# Render Blueprint: API (Docker web service) + frontend (static site).
+# Secrets are declared with sync: false and must be entered in the Render dashboard.
+services:
+  - type: web
+    name: study-buddy-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Backend/Dockerfile
+    dockerContext: ./Backend
+    healthCheckPath: /health
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: DEMO_MODE
+        value: "true"
+      - key: SEED_DEMO_ON_STARTUP
+        value: "true"
+      - key: AI_PROVIDER
+        value: gemini
+      - key: CODE_RUNNER
+        value: local
+      # Set to the static site URL shown after the first deploy (e.g. https://study-buddy-web.onrender.com).
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: web
+    name: study-buddy-web
+    runtime: static
+    plan: free
+    buildCommand: cd Frontend && npm ci && npm run build
+    staticPublishPath: Frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Must match the public URL of study-buddy-api (no trailing slash). Baked in at build time.
+      - key: VITE_API_URL
+        value: https://study-buddy-api.onrender.com

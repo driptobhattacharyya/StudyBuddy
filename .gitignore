@@ -11,9 +11,11 @@
 
 # testing
 **/coverage
+**/.pytest_cache/
 
 # production
 **/build
+**/dist
 
 # misc
 **/.DS_Store
@@ -29,3 +31,32 @@
 **/.idea
 **/dummy.py
 **/venv/*
+
+# Python
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.python-version
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env.*
+!.env.example
+
+# Node / Vite
+*.local
+.eslintcache
+.vite/
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.Trash-*

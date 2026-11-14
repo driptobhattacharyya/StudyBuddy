@@ -1,0 +1,38 @@
+# Full local stack: MongoDB + API (demo mode, seeded) + frontend served by nginx.
+#   docker compose up --build
+#   open http://localhost:8080 (API docs at http://localhost:8000/docs)
+services:
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo-data:/data/db
+
+  backend:
+    build: ./Backend
+    ports:
+      - "8000:8000"
+    env_file:
+      # Optional: copy Backend/.env.example to Backend/.env to override defaults.
+      - path: ./Backend/.env
+        required: false
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      DEMO_MODE: "true"
+      SEED_DEMO_ON_STARTUP: "true"
+      FRONTEND_URL: http://localhost:8080
+      CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+    depends_on: [mongo]
+
+  frontend:
+    build:
+      context: ./Frontend
+      args:
+        # Baked into the JavaScript bundle at build time; the browser calls this URL.
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
