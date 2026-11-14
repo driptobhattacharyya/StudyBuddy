@@ -236,7 +236,7 @@ function CodeEditorDialog({ item, courseId, defaults, onClose, onSaved }) {
 export default function InstructorCode() {
   const { courseId } = useParams()
   const { currentCourse } = useCourses()
-  const [week, setWeek] = useState(1)
+  const [week, setWeek] = useState('')
   const [type, setType] = useState('')
   const [items, setItems] = useState(null)
   const [error, setError] = useState(null)
@@ -290,7 +290,7 @@ export default function InstructorCode() {
         <EmptyState icon={Code2} title="No coding problems here yet" description="Create a problem with a statement, starter code and test cases."
           action={<Button onClick={() => setEditor({})}><Plus className="size-4" /> New problem</Button>} />
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 [&>li]:min-w-0">
           {sorted.map((c) => {
             const due = c.deadline ? new Date(c.deadline) : null
             return (

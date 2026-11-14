@@ -4,7 +4,7 @@ import { BookOpen, Layers, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, Wa
 import { useCourses } from '@/context/CoursesContext'
 import { getErrorMessage } from '@/lib/api'
 import { toast } from '@/lib/toast'
-import { createNote, deleteNote, getNotes, updateNote } from '@/lib/services/notes'
+import { createNote, deleteCourseMaterial, deleteNote, getCourseMaterial, getNotes, updateCourseMaterial, updateNote } from '@/lib/services/notes'
 import { createFlashcard } from '@/lib/services/flashcards'
 import { generateFromMaterial } from '@/lib/services/ai'
 import { PageContainer, PageHeader } from '@/components/layout/PageHeader'
@@ -42,7 +42,8 @@ function NoteEditor({ note, courseId, onClose, onSaved }) {
     setBusy(true)
     try {
       const body = { title: title.trim(), content, week }
-      if (note) await updateNote(idOf(note), body)
+      if (note?._src === 'material') await updateCourseMaterial(idOf(note), { ...body, material_type: 'notes', url: note.url ?? null })
+      else if (note) await updateNote(idOf(note), body)
       else await createNote({ ...body, course_id: courseId })
       toast.success(note ? 'Note updated' : 'Note created')
       onSaved()
@@ -194,7 +195,12 @@ export default function InstructorNotes() {
   const load = useCallback(async () => {
     setError(null)
     try {
-      setNotes(await getNotes(courseId))
+      // Notes live in /notes, but material of type "notes" (e.g. imported / seeded) is shown and editable too.
+      const [a, b] = await Promise.allSettled([getNotes(courseId), getCourseMaterial(courseId)])
+      if (a.status === 'rejected' && b.status === 'rejected') throw a.reason
+      const own = a.status === 'fulfilled' ? a.value : []
+      const mat = (b.status === 'fulfilled' ? b.value : []).filter((m) => m.material_type === 'notes' && m.content)
+      setNotes([...own.map((n) => ({ ...n, _src: 'notes' })), ...mat.map((m) => ({ ...m, title: m.title || `Week ${m.week} notes`, _src: 'material' }))])
     } catch (e) {
       setError(e)
       setNotes([])
@@ -248,15 +254,15 @@ export default function InstructorNotes() {
           action={!notes.length && <Button onClick={() => setEditor({})}><Plus className="size-4" /> New note</Button>}
         />
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 [&>li]:min-w-0">
           {shown.map((n) => (
             <li key={idOf(n)}>
               <Card className="flex h-full flex-col p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <button className="min-w-0 text-left focus-visible:outline-2 focus-visible:outline-brand-500" onClick={() => setPreview(n)}>
+                  <button className="min-w-0 flex-1 text-left focus-visible:outline-2 focus-visible:outline-brand-500" onClick={() => setPreview(n)}>
                     <h3 className="truncate text-base font-semibold tracking-tight text-fg hover:text-brand-600 dark:hover:text-brand-300">{n.title}</h3>
                   </button>
-                  <Badge variant="brand">{n.week != null ? `Week ${n.week}` : 'General'}</Badge>
+                  <Badge variant="brand" className="shrink-0">{n.week != null ? `Week ${n.week}` : 'General'}</Badge>
                 </div>
                 <p className="mt-2 line-clamp-3 flex-1 break-words text-sm text-muted">{stripMd(n.content) || 'Empty note'}</p>
                 <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-border pt-3">
@@ -287,7 +293,8 @@ export default function InstructorNotes() {
         description={del ? `"${del.title}" will be removed for all students.` : ''}
         onConfirm={async () => {
           try {
-            await deleteNote(idOf(del))
+            if (del._src === 'material') await deleteCourseMaterial(idOf(del))
+            else await deleteNote(idOf(del))
             toast.success('Note deleted')
             load()
           } catch (e) {

@@ -213,7 +213,7 @@ function QuestionCard({ item, onEdit, onDelete, onSimilar }) {
 export default function InstructorAssignments() {
   const { courseId } = useParams()
   const { currentCourse } = useCourses()
-  const [week, setWeek] = useState(1)
+  const [week, setWeek] = useState('')
   const [type, setType] = useState('')
   const [qType, setQType] = useState('')
   const [items, setItems] = useState(null)
