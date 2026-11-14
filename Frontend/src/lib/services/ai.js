@@ -53,3 +53,21 @@ export const generateFromMaterial = (payload) => api.post('/ai/generate_from_mat
  */
 export const getCodeFeedback = (assgnId, code) =>
   api.post(`/coding_assignment/${assgnId}/feedback`, { code }).then((r) => r.data)
+
+// ---- Full-response variants (additive): keep `trace_id` so the UI can show "Under the hood" --------
+/** POST /summarize { text } -> { summary, trace_id } */
+export const summarizeFull = (text) => api.post('/summarize', { text }).then((r) => r.data)
+
+/** POST /generate_questions { text } -> { questions: [{question, option1..option4, correct_option}], trace_id } */
+export const generateQuestionsFull = (text) => api.post('/generate_questions', { text }).then((r) => r.data)
+
+/** POST /generate_assignment_questions { text } -> { questions: [...same shape...], trace_id } */
+export const generateSimilarFull = (text) => api.post('/generate_assignment_questions', { text }).then((r) => r.data)
+
+/** Streamed Socratic hint prompt for a question assignment (MCQ/MSQ/numeric); never reveals the answer. */
+export const buildQuestionHintQuery = ({ question, options = [], selected = [] }) =>
+  `You are a Socratic tutor. Give ONE short hint (2-3 sentences) that nudges the student toward the answer by pointing at the relevant concept or asking a guiding question. ` +
+  `Do NOT state the answer, do NOT say which option is correct, and do not eliminate options explicitly.\n\n` +
+  `Question:\n${question}\n` +
+  (options.length ? `Options:\n${options.map((o, i) => `${i + 1}. ${o}`).join('\n')}\n` : '') +
+  (selected.length ? `\nStudent's current selection: ${selected.join(', ')}` : '')

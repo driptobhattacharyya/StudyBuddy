@@ -39,3 +39,10 @@ export const deleteCodingAssignment = (id) => api.delete(`/coding_assignment/del
  */
 export const runCode = (assgnId, code) =>
   api.post('/coding_assignment/run', { assgn_id: assgnId, code: encodeCode(code) }).then((r) => r.data)
+
+/**
+ * POST /coding_assignment/{id}/feedback { assgn_id, code(base64) } -> { feedback (markdown), trace_id }
+ * (the backend decodes base64 like /run; ai.getCodeFeedback sends raw code - prefer this one).
+ */
+export const requestCodeFeedback = (assgnId, code) =>
+  api.post(`/coding_assignment/${assgnId}/feedback`, { assgn_id: assgnId, code: encodeCode(code) }).then((r) => r.data)

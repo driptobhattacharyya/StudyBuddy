@@ -21,6 +21,7 @@ const InstructorDashboard = lz(() => import('@/pages/instructor/Dashboard'))
 const InstructorNotes = lz(() => import('@/pages/instructor/Notes'))
 const InstructorAssignments = lz(() => import('@/pages/instructor/Assignments'))
 const InstructorCode = lz(() => import('@/pages/instructor/Code'))
+const InstructorGradebook = lz(() => import('@/pages/instructor/Gradebook'))
 
 const AdminOverview = lz(() => import('@/pages/admin/Overview'))
 const AdminUsers = lz(() => import('@/pages/admin/Users'))
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="courses/:courseId/notes" element={<InstructorNotes />} />
           <Route path="courses/:courseId/assignments" element={<InstructorAssignments />} />
           <Route path="courses/:courseId/code" element={<InstructorCode />} />
+          <Route path="courses/:courseId/gradebook" element={<InstructorGradebook />} />
         </Route>
       </Route>
 
