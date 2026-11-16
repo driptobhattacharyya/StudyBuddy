@@ -1,4 +1,6 @@
 # Render Blueprint: API (Docker web service) + frontend (static site).
+# The live demo runs on Render's free plan in Singapore; this file does not pin a region.
+# Step-by-step instructions, the full variable table and the Atlas / Google / AI setup are in docs/DEPLOYMENT.md.
 # Secrets are declared with sync: false and must be entered in the Render dashboard.
 services:
   - type: web
@@ -9,29 +11,42 @@ services:
     dockerContext: ./Backend
     healthCheckPath: /health
     envVars:
+      # Secret. Live demo: MONGODB_URI=mongomock:// (in-memory, reseeded on every restart).
+      # Production: a MongoDB Atlas connection string (see docs/DEPLOYMENT.md).
       - key: MONGODB_URI
         sync: false
+      # Secret. Required in any real deployment; tokens are invalidated on restart if unset.
       - key: SECRET_KEY
         sync: false
+      # Secret. Only needed if AI_PROVIDER is switched to gemini.
       - key: GEMINI_API_KEY
         sync: false
+      # Secret. Used by the default AI provider (chat and embeddings). Without it the mock provider is used in demo mode.
       - key: OPENAI_API_KEY
         sync: false
+      # Optional. Enables Google sign-in together with GOOGLE_CLIENT_SECRET.
       - key: GOOGLE_CLIENT_ID
         sync: false
+      # Secret. Optional, paired with GOOGLE_CLIENT_ID.
+      # GOOGLE_REDIRECT_URI is not declared here; set it in the dashboard to
+      # https://<this API URL>/oauth/callback and register the same URI in Google Cloud.
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      # Enables the one-click student, instructor and admin demo logins. Turn off for real users.
       - key: DEMO_MODE
         value: "true"
+      # Seeds the demo dataset at start-up (idempotent).
       - key: SEED_DEMO_ON_STARTUP
         value: "true"
       - key: AI_PROVIDER
         value: openai
+      # local (hardened subprocess) or judge0. See docs/DEPLOYMENT.md for hardening advice.
       - key: CODE_RUNNER
         value: local
-      # Set to the static site URL shown after the first deploy (e.g. https://study-buddy-web.onrender.com).
+      # Public URL of the static site, no trailing slash. Live demo: https://study-buddy-web-h7r8.onrender.com
       - key: FRONTEND_URL
         sync: false
+      # Browser origins allowed by CORS, comma separated. Set to the same site URL.
       - key: CORS_ORIGINS
         sync: false
 
@@ -41,6 +56,7 @@ services:
     plan: free
     buildCommand: cd Frontend && npm ci && npm run build
     staticPublishPath: Frontend/dist
+    # Rewrite so client-side routes (for example /app/notes) load index.html.
     routes:
       - type: rewrite
         source: /*
@@ -48,6 +64,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      # Must match the public URL of study-buddy-api (no trailing slash). Baked in at build time.
+      # Public URL of the API service (no trailing slash). Baked in at build time, so a rebuild is needed after any change.
+      # Live demo API: https://study-buddy-api-8i28.onrender.com
       - key: VITE_API_URL
-        value: https://study-buddy-api.onrender.com
+        value: https://study-buddy-api-8i28.onrender.com

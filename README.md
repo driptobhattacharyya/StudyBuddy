@@ -1,8 +1,10 @@
 # Study Buddy
 
+[![CI](https://github.com/driptobhattacharyya/StudyBuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/driptobhattacharyya/StudyBuddy/actions/workflows/ci.yml)
+
 An AI-assisted learning management system: courses, weekly notes, graded assignments with sandboxed coding questions, flashcards, and a course-aware AI tutor that answers from the material.
 
-Live demo: <!-- DEMO_URL -->
+Live demo: https://study-buddy-web-h7r8.onrender.com (sign in with one click as a student, instructor or admin). The API is on Render's free plan and sleeps when idle, so the first request can take up to a minute.
 
 ## Screenshots
 
@@ -44,9 +46,10 @@ Live demo: <!-- DEMO_URL -->
 
 * **Backend:** Python 3.12, FastAPI, pydantic, MongoDB (pymongo), PyJWT, httpx, google-genai.
 * **Frontend:** React 19, Vite, React Router, Tailwind CSS, Monaco editor, react-markdown.
-* **AI:** Google Gemini (default), OpenAI, OpenRouter, or an offline mock provider (`AI_PROVIDER=mock`) that needs no key.
-* **Infrastructure:** Docker, docker compose, nginx, Render blueprint.
-* **Testing and CI:** pytest (offline, using mongomock), ESLint, a Playwright end-to-end smoke suite (`Frontend/e2e`, mock AI), GitHub Actions.
+* **AI:** Google Gemini (default in code), OpenAI (the Render Blueprint's provider; chat and embeddings), OpenRouter, or an offline mock provider (`AI_PROVIDER=mock`) that needs no key.
+* **Database:** MongoDB (Atlas in production); the API can run on an in-memory database (`mongomock://`) for demos.
+* **Infrastructure:** Docker, docker compose, nginx, Render Blueprint.
+* **Testing and CI:** pytest (offline, using mongomock), ESLint, a Playwright end-to-end smoke suite (`Frontend/e2e`, mock AI, covering the three roles), GitHub Actions.
 
 ## Architecture
 
@@ -120,16 +123,11 @@ cd Backend && MONGODB_URI=mongomock:// DEMO_MODE=true SEED_DEMO_ON_STARTUP=true 
 cd Frontend && npm run build && npx playwright install chromium && npm run e2e
 ```
 
-The backend suite runs offline: it uses mongomock, a fake AI provider and mocked HTTP transports. The runner tests need `node` and `javac` on the PATH. CI runs both backend and frontend jobs on every push and pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
+The backend suite runs offline: it uses mongomock, a fake AI provider and mocked HTTP transports. The runner tests need `node` and `javac` on the PATH. CI runs the backend tests, the frontend lint and build, and the end-to-end suite on every push and pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
 ## Deployment
 
-[`render.yaml`](render.yaml) is a Render Blueprint with two services:
-
-* `study-buddy-api`: the backend as a Docker web service on the free plan, with health check `/health`. Secrets (`MONGODB_URI`, `SECRET_KEY`, `GEMINI_API_KEY` or `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `FRONTEND_URL`, `CORS_ORIGINS`) are entered in the Render dashboard.
-* `study-buddy-web`: the frontend as a static site, with a rewrite of all routes to `index.html`. `VITE_API_URL` must match the API's public URL.
-
-Create the Blueprint from the repository in the Render dashboard, then fill in the secrets.
+The app deploys to Render as a Docker web service (API) and a static site (frontend) from [`render.yaml`](render.yaml). The full step-by-step guide, including the manual route, the environment variable table, Atlas, real AI, Google sign-in and hardening, is in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Project structure
 

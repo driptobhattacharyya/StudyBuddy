@@ -2,6 +2,10 @@
 
 Study Buddy is a two-part application: a FastAPI backend (`Backend/`) backed by MongoDB, and a React single-page app (`Frontend/`) built with Vite. This document describes what the code does today.
 
+## Deployment topology
+
+The hosted demo runs on Render's free plan: the API as a Docker web service built from `Backend/Dockerfile`, and the frontend as a static site built from `Frontend/`, with a rewrite of all routes to `index.html`. The API uses the in-memory database (`mongomock://`), so it resets on every restart and reseeds demo data at start-up. Production uses MongoDB Atlas. The step-by-step setup is in [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Components
 
 | Component | Location | Responsibility |
