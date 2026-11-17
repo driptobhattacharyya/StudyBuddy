@@ -121,6 +121,7 @@ export function AppShell({ shell }) {
       <div className="flex min-h-dvh">
         {/* Desktop sidebar */}
         <aside
+          aria-label="Sidebar"
           className={cn(
             'sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-200 lg:flex',
             collapsed ? 'w-[72px]' : 'w-64',

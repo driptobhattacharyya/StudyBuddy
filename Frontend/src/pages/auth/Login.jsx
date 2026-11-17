@@ -21,7 +21,7 @@ export default function Login() {
 
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
-      <div className="relative hidden overflow-hidden bg-gradient-to-br from-brand-700 via-brand-600 to-accent-600 p-12 text-white lg:flex lg:flex-col lg:justify-between">
+      <aside aria-label="About Study Buddy" className="relative hidden overflow-hidden bg-gradient-to-br from-brand-700 via-brand-600 to-accent-600 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="absolute -right-24 -top-24 size-96 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
         <div className="relative flex items-center gap-2.5 text-lg font-semibold">
           <Logo className="[&_span]:text-white" />
@@ -38,21 +38,21 @@ export default function Login() {
           </ul>
         </div>
         <p className="relative flex items-center gap-2 text-sm text-white/70"><BookOpen className="size-4" aria-hidden="true" /> IIT Madras BS Software Engineering - Team 22</p>
-      </div>
+      </aside>
 
       <div className="flex flex-col">
-        <div className="flex items-center justify-between p-4 sm:p-6">
+        <header className="flex items-center justify-between p-4 sm:p-6">
           <Link to="/" className="lg:invisible" aria-label="Back to home"><Logo /></Link>
           <ThemeToggle />
-        </div>
-        <div className="flex flex-1 items-center justify-center px-4 pb-16 sm:px-8">
+        </header>
+        <main className="flex flex-1 items-center justify-center px-4 pb-16 sm:px-8">
           <div className="w-full max-w-sm">
             <h1 className="text-3xl font-semibold tracking-tight">Welcome back</h1>
             <p className="mt-2 text-muted">Sign in to continue learning{demo_mode ? ', or explore the live demo with no account.' : '.'}</p>
             <AuthActions stacked className="mt-8" />
             {location.state?.from && <p className="mt-6 text-xs text-subtle">You will be taken back to where you were after signing in.</p>}
           </div>
-        </div>
+        </main>
       </div>
     </div>
   )

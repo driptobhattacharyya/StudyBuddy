@@ -181,7 +181,7 @@ function MarksSummary({ marks, insights, loading }) {
                 {rows.slice(0, 8).map((m) => (
                   <li key={`${m.week}-${m.assgn_type}`}>
                     <div className="mb-1 flex justify-between text-xs"><span className="text-muted">Week {m.week} - {TYPE_LABEL[m.assgn_type] ?? m.assgn_type}</span><span className="font-medium">{Math.round(m.mark)}%</span></div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-valuenow={Math.round(m.mark)} aria-valuemin={0} aria-valuemax={100}>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-label={`Week ${m.week} ${TYPE_LABEL[m.assgn_type] ?? m.assgn_type} score`} aria-valuenow={Math.round(m.mark)} aria-valuemin={0} aria-valuemax={100}>
                       <div className={cn('h-full rounded-full', m.mark >= 70 ? 'bg-emerald-500' : 'bg-amber-500')} style={{ width: `${Math.min(100, m.mark)}%` }} />
                     </div>
                   </li>

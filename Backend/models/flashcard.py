@@ -9,6 +9,7 @@ class FlashCard(BaseModel):
     week: int = Field(ge=0, le=12)
     title: str = Field(min_length=1, max_length=200)
     content: Optional[str] = None
+    shared: bool = Field(False, description="Instructors only: publish the card to every student of the course")
 
 
 class FlashCardUpdate(BaseModel):

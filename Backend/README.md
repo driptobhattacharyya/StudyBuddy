@@ -87,5 +87,5 @@ tests/               pytest, fully offline (mongomock, fake AI provider, httpx m
 ## Tests
 
 ```bash
-pytest          # ~80 tests, offline, ~15 s (needs python, node and javac on PATH for runner tests)
+pytest          # 105 tests, offline, ~15 s (needs python, node and javac on PATH for runner tests)
 ```

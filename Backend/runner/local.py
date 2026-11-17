@@ -182,7 +182,7 @@ class LocalRunner:
         _write(os.path.join(workdir, f"{class_name}.java"), code)
         result = self._spawn(
             [javac, "-J-Xmx256m", "-J-XX:+UseSerialGC", "-encoding", "UTF-8", "-d", ".", f"{class_name}.java"],
-            workdir, b"", timeout=max(self.settings.code_timeout_seconds * 4, 20), memory=False,
+            workdir, b"", timeout=max(self.settings.code_timeout_seconds * 6, 45), memory=False,  # javac is slow to start on small hosts: own, longer limit
         )
         if result.status != OK:
             stderr = result.stderr or "Compilation failed"

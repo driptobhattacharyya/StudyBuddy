@@ -161,7 +161,7 @@ export default function Landing() {
             <div className="rounded-3xl bg-gradient-to-br from-brand-600 to-accent-600 px-6 py-14 text-center text-white sm:px-12">
               <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">See it in action</h2>
               <p className="mx-auto mt-3 max-w-xl text-white/80">Jump straight into the live demo - no sign-up needed.</p>
-              <div className="mt-8 flex justify-center"><AuthActions className="[&>*]:!bg-none [&>*]:!bg-white [&>*]:!text-brand-700 [&>*]:!border-transparent [&>*]:hover:!bg-white/90" /></div>
+              <div className="mt-8 flex justify-center"><AuthActions className="[&>button]:!bg-none [&>button]:!bg-white [&>button]:!text-brand-700 [&>button]:!border-transparent [&>button]:hover:!bg-white/90 [&>a]:!bg-none [&>a]:!bg-white [&>a]:!text-brand-700 [&>a]:!border-transparent [&>a]:hover:!bg-white/90 [&>p]:text-white/90 justify-center" /></div>
             </div>
           </section>
         )}

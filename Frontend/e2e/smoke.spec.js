@@ -132,3 +132,24 @@ test('admin sees users and AI usage', async ({ page }) => {
   await expect(page.getByText('Requests', { exact: true }).first()).toBeVisible()
   expect(problems).toEqual([])
 })
+
+test('cold start: landing shows a "waking up" state, then the demo buttons enable themselves', async ({ page }) => {
+  let calls = 0
+  await page.route('**/auth/config', async (route) => {
+    calls += 1
+    if (calls === 1) return route.abort('connectionrefused') // the sleeping host refuses / resets the first request
+    await new Promise((r) => setTimeout(r, 3500)) // ...and the next one is slow to answer
+    return route.continue()
+  })
+  await page.goto('/')
+  await expect(page.getByText('Waking up the demo server…').first()).toBeVisible()
+  const student = page.getByRole('button', { name: 'Try as student' }).first()
+  await expect(student).toBeVisible()
+  await expect(student).toBeDisabled()
+  // Automatic retry: no reload, no click.
+  await expect(page.getByText('Waking up the demo server…').first()).toBeHidden({ timeout: 30_000 })
+  await expect(student).toBeEnabled()
+  expect(calls).toBeGreaterThanOrEqual(2)
+  await student.click()
+  await expect(page).toHaveURL(/\/app$/)
+})

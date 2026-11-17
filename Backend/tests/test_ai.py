@@ -347,3 +347,37 @@ def test_gemini_provider_with_fake_client():
         return "".join([c async for c in p.astream("s", "p")])
 
     assert asyncio.run(collect()) == "xy"
+
+
+def test_hint_prompt_is_socratic():
+    """Prompt-level guard: the hint system prompt must forbid skeletons/long code and demand one guiding question."""
+    from ai import prompts
+
+    p = prompts.HINT.lower()
+    assert "never the solution" in p or "never write a solution skeleton" in p
+    assert "more than one line of code" in p  # at most one line of code
+    assert "skeleton" in p and "loop" in p  # no control-flow skeletons
+    assert "exactly one guiding question" in p
+    assert "already" in p and "tried" in p  # escalate only when the student says they tried
+    assert "<student_message>" in prompts.HINT  # user text stays tagged as data
+
+
+def test_hint_request_uses_socratic_system_prompt(client, student, fake_ai, coding):
+    from ai import prompts
+
+    client.post("/ai/hint", json={"assgn_id": coding, "code": "x", "message": "I tried a loop, still stuck"}, headers=student)
+    assert fake_ai.calls[-1]["system"] == prompts.HINT
+    assert "I tried a loop" in fake_ai.calls[-1]["prompt"]
+
+
+def test_instructor_shared_flashcard_visible_to_students(client, student, instructor, course):
+    body = {"course_id": course, "week": 1, "title": "Shared", "content": "c", "shared": True}
+    assert client.post("/flash_card/create", json=body, headers=instructor).status_code == 201
+    mine = client.post("/flash_card/create", json={**body, "title": "Mine"}, headers=student)
+    assert mine.status_code == 201
+    titles = [c["title"] for c in client.get(f"/user/get/course/{course}", headers=student).json()]
+    assert sorted(titles) == ["Mine", "Shared"]
+    # a student cannot publish course-wide: their "shared" flag is ignored, so other students never see it
+    # and students cannot edit/delete the instructor's card
+    shared_id = next(c["_id"] for c in client.get(f"/user/get/course/{course}", headers=student).json() if c["title"] == "Shared")
+    assert client.delete(f"/flash_card/delete/{shared_id}", headers=student).status_code == 404

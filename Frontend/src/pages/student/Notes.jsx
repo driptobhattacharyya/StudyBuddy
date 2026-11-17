@@ -23,6 +23,7 @@ import { Select } from '@/components/ui/Field'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Spinner } from '@/components/ui/Spinner'
 import { Card } from '@/components/ui/Card'
+import { stripLeadingTitle } from '@/lib/markdown'
 import { Markdown, PracticeQuiz, ChatPanel, UnderTheHood } from '@/components/ai'
 
 const idOf = (n) => n._id ?? n.id ?? n.title
@@ -74,7 +75,7 @@ function NoteBody({ note }) {
       />
     )
   }
-  return <Markdown>{note.content}</Markdown>
+  return <Markdown>{stripLeadingTitle(note.content, note.title)}</Markdown>
 }
 
 const weekLabel = (w) => (w ? `Week ${w}` : 'General')
@@ -131,7 +132,7 @@ function NoteReader({ note, courseId }) {
   const onPdf = async () => {
     setPdfBusy(true)
     try {
-      await downloadPdf({ title: note.title, content: note.content })
+      await downloadPdf({ title: note.title, content: stripLeadingTitle(note.content, note.title) })
       toast.success('PDF downloaded')
     } catch {
       toast.error('Could not create the PDF')
@@ -217,7 +218,7 @@ function Sidebar({ groups, activeId, onSelect }) {
     <nav aria-label="Notes by week" className="space-y-4">
       {groups.map(([week, items]) => (
         <div key={week}>
-          <h3 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">{weekLabel(week)}</h3>
+          <h2 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">{weekLabel(week)}</h2>
           <ul className="space-y-0.5">
             {items.map((n) => (
               <li key={idOf(n)}>

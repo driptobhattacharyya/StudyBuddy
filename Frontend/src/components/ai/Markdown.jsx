@@ -86,10 +86,20 @@ const components = {
 }
 
 /**
- * <Markdown>{string}</Markdown> - GitHub-flavoured markdown with syntax highlighting,
+ * <Markdown>{string}</Markdown> (pass `inline` for one-line labels) - GitHub-flavoured markdown with syntax highlighting,
  * styled with Tailwind typography. Safe by default (raw HTML is not rendered).
  */
-export const Markdown = memo(function Markdown({ children, className }) {
+const inlineComponents = { ...components, p: ({ children }) => <>{children}</> }
+
+export const Markdown = memo(function Markdown({ children, className, inline = false }) {
+  if (inline) {
+    // Inline rendering for short labels (flashcard fronts/backs, card titles): backticks/emphasis work, no block wrapper.
+    return (
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ ...inlineComponents, pre: ({ children: c }) => <>{c}</> }}>
+        {children || ''}
+      </ReactMarkdown>
+    )
+  }
   return (
     <div
       className={cn(

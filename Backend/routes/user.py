@@ -60,19 +60,19 @@ def upcoming_deadlines(current_user: CurrentUser, limit: int = Query(20, ge=1, l
 @user.get("/get/course/{course_id}", responses=responses)
 def get_flash_card_course_filter(course_id: str, current_user: CurrentUser):
     ensure_course(course_id)
-    return objectsEntity(db.flashcard.find({"course_id": course_id, "user_id": current_user.user_id}))
+    return objectsEntity(db.flashcard.find({"course_id": course_id, "$or": [{"user_id": current_user.user_id}, {"shared": True}]}))
 
 
 @user.get("/get/course/{course_id}/week/{week_id}")
 def get_flash_card_course_and_week_filter(current_user: CurrentUser, course_id: str,
                                           week_id: int = Path(..., title="Week ID", ge=0, le=12)):
     return objectsEntity(db.flashcard.find(
-        {"course_id": course_id, "user_id": current_user.user_id, "week": week_id}))
+        {"course_id": course_id, "week": week_id, "$or": [{"user_id": current_user.user_id}, {"shared": True}]}))
 
 
 @user.get("/flashcards", responses=responses)
 def get_all_flashcards(current_user: CurrentUser):
-    cards = objectsEntity(db.flashcard.find({"user_id": current_user.user_id}))
+    cards = objectsEntity(db.flashcard.find({"$or": [{"user_id": current_user.user_id}, {"shared": True}]}))
     cards.reverse()
     return cards
 

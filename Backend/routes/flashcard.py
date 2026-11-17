@@ -26,6 +26,7 @@ def create_flash_card(flash_card: FlashCard, user: CurrentUser):
     ensure_course(flash_card.course_id)
     doc = flash_card.model_dump()
     doc["user_id"] = user.user_id
+    doc["shared"] = bool(flash_card.shared and user.is_instructor)  # only instructors can publish course-wide cards
     res = db.flashcard.insert_one(doc)
     return {"message": "success", "db_entry_id": str(res.inserted_id)}
 

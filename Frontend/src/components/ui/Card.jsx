@@ -13,7 +13,7 @@ export function Card({ className, interactive, ...props }) {
   )
 }
 export const CardHeader = ({ className, ...props }) => <div className={cn('flex flex-col gap-1 p-5 pb-3', className)} {...props} />
-export const CardTitle = ({ className, as: Tag = 'h3', ...props }) => (
+export const CardTitle = ({ className, as: Tag = 'h2', ...props }) => (
   <Tag className={cn('text-base font-semibold tracking-tight text-fg', className)} {...props} />
 )
 export const CardDescription = ({ className, ...props }) => <p className={cn('text-sm text-muted', className)} {...props} />

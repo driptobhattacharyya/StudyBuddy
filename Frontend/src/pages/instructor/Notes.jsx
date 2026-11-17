@@ -15,6 +15,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Input, Select, Textarea } from '@/components/ui/Field'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { stripLeadingTitle } from '@/lib/markdown'
 import { Markdown } from '@/components/ai/Markdown'
 import { UnderTheHood } from '@/components/ai/UnderTheHood'
 import { ConfirmDialog } from '@/components/instructor/Confirm'
@@ -110,8 +111,8 @@ function AIAssist({ notes, initialNote, courseId, onClose }) {
   const publishCards = async () => {
     setPublishing(true)
     try {
-      await Promise.all(cards.map((c) => createFlashcard({ course_id: courseId, week, title: c.title, content: c.content })))
-      toast.success(`Created ${cards.length} flashcard${cards.length === 1 ? '' : 's'}`)
+      await Promise.all(cards.map((c) => createFlashcard({ course_id: courseId, week, title: c.title, content: c.content, shared: true })))
+      toast.success(`Published ${cards.length} flashcard${cards.length === 1 ? '' : 's'} to students`)
       setCards([])
     } catch (e) {
       toast.error('Could not create flashcards', { description: getErrorMessage(e) })
@@ -168,7 +169,7 @@ function AIAssist({ notes, initialNote, courseId, onClose }) {
                     </div>
                   ))}
                   <Button variant="outline" onClick={publishCards} loading={publishing} disabled={cards.some((c) => !c.title.trim() || !c.content.trim())}>
-                    <Layers className="size-4" /> Create {cards.length} flashcard{cards.length === 1 ? '' : 's'} (week {week})
+                    <Layers className="size-4" /> Publish {cards.length} flashcard{cards.length === 1 ? '' : 's'} to students (week {week})
                   </Button>
                 </div>
               )}
@@ -283,7 +284,7 @@ export default function InstructorNotes() {
       {preview && (
         <Dialog open onOpenChange={(o) => !o && setPreview(null)} title={preview.title} description={preview.week != null ? `Week ${preview.week}` : undefined} className="max-w-3xl"
           footer={<Button variant="outline" onClick={() => { setEditor({ note: preview }); setPreview(null) }}><Pencil className="size-4" /> Edit</Button>}>
-          <Markdown>{preview.content}</Markdown>
+          <Markdown>{stripLeadingTitle(preview.content, preview.title)}</Markdown>
         </Dialog>
       )}
       <ConfirmDialog

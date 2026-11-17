@@ -29,6 +29,14 @@ CLASSMATES = [
 ]
 
 
+def _strip_leading_title(content: str, title: str) -> str:
+    """Drop a leading ``# <title>`` H1 so the title is not shown twice."""
+    lines = content.lstrip().split("\n", 1)
+    if lines[0].strip() == f"# {title}".strip():
+        return lines[1].lstrip("\n") if len(lines) > 1 else ""
+    return content
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -72,6 +80,7 @@ def seed(reset: bool = False) -> dict[str, Any]:
         db.course.update_one({"course_id": cid}, {"$set": {"course_id": cid, "course_name": course["course_name"]}}, upsert=True)
         counts["courses"] += 1
         for week, title, content, url in course["notes"]:
+            content = _strip_leading_title(content, title)  # the UI already renders the note title as the page heading
             db.course_material.update_one(
                 {"course_id": cid, "week": week, "material_type": "notes"},
                 {"$set": {"course_id": cid, "week": week, "material_type": "notes", "title": title,

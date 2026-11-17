@@ -89,7 +89,7 @@ function GenerateDialog({ open, onOpenChange, courseId, defaultWeek, onCreated }
       {done ? (
         <div className="space-y-3 pb-2" aria-live="polite">
           <div className="rounded-xl border border-border bg-surface-2/50 p-4">
-            <p className="font-medium">{done.title}</p>
+            <p className="font-medium"><Markdown inline>{done.title}</Markdown></p>
             <div className="mt-2 text-sm text-muted"><Markdown className="prose-sm">{done.content}</Markdown></div>
           </div>
           <div className="flex items-center justify-between">
@@ -190,7 +190,7 @@ function StudyMode({ cards, srs, setSrs, onExit, paused }) {
             <div className="relative h-full w-full transition-transform duration-500 motion-reduce:duration-0" style={{ transformStyle: 'preserve-3d', transform: flipped ? 'rotateY(180deg)' : 'none' }}>
               <div className="absolute inset-0 flex flex-col items-center justify-center overflow-auto rounded-2xl border border-border bg-surface p-6 text-center shadow-pop" style={{ backfaceVisibility: 'hidden' }}>
                 <Badge variant="brand" className="mb-4">{wk(current.week)}</Badge>
-                <p className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{current.title}</p>
+                <p className="break-words text-xl font-semibold tracking-tight sm:text-2xl"><Markdown inline>{current.title}</Markdown></p>
                 <p className="mt-4 text-xs text-subtle">Tap or press space to flip</p>
               </div>
               <div className="absolute inset-0 overflow-auto rounded-2xl border border-brand-300 bg-brand-50 p-6 shadow-pop dark:border-brand-500/40 dark:bg-brand-500/10" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
@@ -301,13 +301,13 @@ export default function StudentFlashcards() {
                 <Card className="group flex h-full flex-col p-4">
                   <div className="flex items-center justify-between gap-2">
                     <Badge variant="brand">{wk(c.week)}</Badge>
-                    <div className="flex gap-0.5">
+                    {c.shared ? <Badge>From your instructor</Badge> : <div className="flex gap-0.5">
                       <button aria-label={`Edit ${c.title}`} onClick={() => setEditing(c)} className="rounded-md p-1.5 text-subtle hover:bg-surface-2 hover:text-fg"><Pencil className="size-4" /></button>
                       <button aria-label={`Delete ${c.title}`} onClick={() => setDeleting(c)} className="rounded-md p-1.5 text-subtle hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"><Trash2 className="size-4" /></button>
-                    </div>
+                    </div>}
                   </div>
-                  <h3 className="mt-3 break-words font-semibold leading-snug tracking-tight">{c.title}</h3>
-                  <p className={cn('mt-1.5 line-clamp-4 break-words text-sm text-muted', !c.content && 'italic')}>{c.content || 'No answer written yet.'}</p>
+                  <h2 className="mt-3 break-words font-semibold leading-snug tracking-tight"><Markdown inline>{c.title}</Markdown></h2>
+                  <p className={cn('mt-1.5 line-clamp-4 break-words text-sm text-muted', !c.content && 'italic')}>{c.content ? <Markdown inline>{c.content}</Markdown> : 'No answer written yet.'}</p>
                   {srs[idOf(c)] && <p className="mt-auto pt-3 text-xs text-subtle">Box {srs[idOf(c)].box + 1} of {INTERVALS.length}</p>}
                 </Card>
               </li>

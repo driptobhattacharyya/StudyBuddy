@@ -5,7 +5,8 @@ import { homeForRole, useAuth } from '@/context/AuthContext'
 import { googleLoginUrl } from '@/lib/services/auth'
 import { getErrorMessage } from '@/lib/api'
 import { toast } from '@/lib/toast'
-import { useAuthConfig } from '@/lib/useAuthConfig'
+import { retryAuthConfig, useAuthConfig, withColdStartRetry } from '@/lib/useAuthConfig'
+import { Spinner } from '@/components/ui/Spinner'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 
@@ -26,41 +27,65 @@ export function GoogleIcon({ className }) {
  * `size` - 'md' | 'lg'.  `align` - 'start' | 'center' (row layout) ; `stacked` - full-width column.
  */
 export function AuthActions({ size = 'lg', stacked = false, className, showGoogle = true }) {
-  const { demo_mode, google_login } = useAuthConfig()
+  const { demo_mode, google_login, waking: configWaking, failed } = useAuthConfig()
   const { loginAsDemo } = useAuth()
   const navigate = useNavigate()
   const [pending, setPending] = useState(null)
+  const [loginWaking, setLoginWaking] = useState(false)
+  const waking = configWaking || loginWaking
 
   const tryDemo = async (role) => {
     setPending(role)
     try {
-      const me = await loginAsDemo(role)
+      const me = await withColdStartRetry(() => loginAsDemo(role), { onWaiting: setLoginWaking })
       navigate(homeForRole(me.role), { replace: true })
     } catch (err) {
       toast.error('Demo sign-in failed', { description: getErrorMessage(err) })
       setPending(null)
+      setLoginWaking(false)
     }
   }
 
   const google = showGoogle && google_login !== false
 
+  // While the free-tier API wakes up the demo buttons are shown disabled (with a spinner) instead of vanishing.
+  const showDemo = demo_mode || configWaking || failed
+
   return (
     <div className={cn('flex gap-3', stacked ? 'flex-col' : 'flex-col sm:flex-row sm:flex-wrap', className)}>
-      {demo_mode && (
+      {showDemo && (
         <>
-          <Button size={size} loading={pending === 'student'} disabled={!!pending} onClick={() => tryDemo('student')}>
+          <Button size={size} loading={pending === 'student' || configWaking} disabled={!!pending || !demo_mode} onClick={() => tryDemo('student')}>
             <GraduationCap className="size-5" aria-hidden="true" />
             Try as student
           </Button>
-          <Button size={size} variant="secondary" loading={pending === 'instructor'} disabled={!!pending} onClick={() => tryDemo('instructor')}>
+          <Button size={size} variant="secondary" loading={pending === 'instructor' || configWaking} disabled={!!pending || !demo_mode} onClick={() => tryDemo('instructor')}>
             <Presentation className="size-5" aria-hidden="true" />
             Try as instructor
           </Button>
-          <Button size={size} variant="secondary" loading={pending === 'admin'} disabled={!!pending} onClick={() => tryDemo('admin')}>
+          <Button size={size} variant="secondary" loading={pending === 'admin' || configWaking} disabled={!!pending || !demo_mode} onClick={() => tryDemo('admin')}>
             <ShieldCheck className="size-5" aria-hidden="true" />
             Try as admin
           </Button>
         </>
+      )}
+      {(waking || failed) && (
+        <p className="flex w-full basis-full items-start gap-2 text-sm text-muted">
+          {waking ? (
+            <>
+              <Spinner label="Waking up the demo server" className="mt-0.5 shrink-0" />
+              <span>
+                <strong className="font-medium">Waking up the demo server…</strong> this can take up to a minute on the free tier.
+                {configWaking ? ' Retrying automatically.' : ' Signing you in as soon as it is ready.'}
+              </span>
+            </>
+          ) : (
+            <span>
+              The demo server did not respond.{' '}
+              <button type="button" className="font-medium underline" onClick={retryAuthConfig}>Try again</button>
+            </span>
+          )}
+        </p>
       )}
       {google && (
         <Button size={size} variant="outline" href={googleLoginUrl()} disabled={!!pending}>

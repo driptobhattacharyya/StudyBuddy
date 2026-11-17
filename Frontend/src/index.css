@@ -57,7 +57,7 @@
   --border-strong: #cbd5e1;
   --fg: #0f172a;
   --muted: #475569;
-  --subtle: #94a3b8;
+  --subtle: #5b6b82;
 }
 
 :root.dark {
@@ -69,7 +69,7 @@
   --border-strong: #334155;
   --fg: #f1f5f9;
   --muted: #a3b0c5;
-  --subtle: #6b7a92;
+  --subtle: #8b99b0;
 }
 
 @layer base {

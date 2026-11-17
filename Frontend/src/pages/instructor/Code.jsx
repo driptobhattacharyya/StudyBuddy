@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Input, Select, Textarea } from '@/components/ui/Field'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Tabs, TabsContent } from '@/components/ui/Tabs'
+import { splitStatement } from '@/lib/markdown'
 import { Markdown } from '@/components/ai/Markdown'
 import { ConfirmDialog } from '@/components/instructor/Confirm'
 import { CodeBox } from '@/components/instructor/CodeBox'
@@ -302,8 +303,9 @@ export default function InstructorCode() {
                     <Badge>{langLabel(c.language)}</Badge>
                     {c.evaluated && <Badge variant="success">Evaluated</Badge>}
                   </div>
-                  <button className="mt-3 line-clamp-3 flex-1 text-left text-sm text-fg hover:text-brand-600 dark:hover:text-brand-300" onClick={() => setView(c)}>
-                    {(c.question || '').replace(/[#*`>_]/g, '').trim().slice(0, 220)}
+                  <button className="mt-3 flex-1 text-left hover:text-brand-600 dark:hover:text-brand-300" onClick={() => setView(c)}>
+                    <span className="block break-words font-semibold leading-snug text-fg">{splitStatement(c.question).title || 'Untitled problem'}</span>
+                    {splitStatement(c.question).summary && <span className="mt-1 line-clamp-3 block break-words text-sm text-muted">{splitStatement(c.question).summary.slice(0, 220)}</span>}
                   </button>
                   <p className="mt-3 text-xs text-muted">
                     {c.public_testcase?.length ?? 0} public, {c.private_testcase?.length ?? 0} private tests
