@@ -56,6 +56,37 @@ class FlashcardDraft(BaseModel):
     content: str
 
 
+class DeckCard(BaseModel):
+    front: str = Field(min_length=3, max_length=300)
+    back: str = Field(min_length=1, max_length=1500)
+    week: int | None = None
+    source: str | None = None
+
+    @field_validator("front", "back", mode="before")
+    @classmethod
+    def _strip(cls, v):
+        return str(v).strip()
+
+    @field_validator("week", mode="before")
+    @classmethod
+    def _week(cls, v):
+        try:
+            w = int(v)
+        except (TypeError, ValueError):
+            return None
+        return w if 0 <= w <= 12 else None
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _source(cls, v):
+        v = str(v).strip() if v is not None else ""
+        return v or None
+
+
+class DeckSchema(BaseModel):
+    cards: list[DeckCard] = Field(min_length=1)
+
+
 class DraftSchema(BaseModel):
     summary: str
     questions: list[MCQSchema] = Field(min_length=1)
@@ -91,8 +122,8 @@ async def _text(user: str, feature: str, system: str, prompt: str, retrieved=Non
     return out.strip(), trace
 
 
-async def _structured(user: str, feature: str, system: str, prompt: str, schema: type[BaseModel]):
-    trace = Trace(user, feature, system, prompt)
+async def _structured(user: str, feature: str, system: str, prompt: str, schema: type[BaseModel], retrieved=None):
+    trace = Trace(user, feature, system, prompt, retrieved)
     try:
         obj = await agenerate_structured(providers.get_provider(), system, prompt, schema)
     except AIError as exc:
@@ -173,6 +204,48 @@ async def flashcard_back(user: str, course_id: str, week: int, title: str) -> di
     prompt = f"<title>{title}</title>\n<context>\n{ctx}\n</context>"
     out, trace = await _text(user, "flashcard", prompts.FLASHCARD, prompt, chunks, temperature=0.2)
     return {"content": out, "sources": rag.citations(chunks), "trace_id": trace.trace_id}
+
+
+def _norm_front(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+async def flashcard_deck(user: str, course_id: str, week: int | None, topic: str, count: int) -> dict[str, Any]:
+    """Preview a deck of one-concept flashcards for a broad topic. Nothing is persisted here."""
+    topic = cap(topic, "topic", 120)
+    chunks = await asyncio.to_thread(rag.retrieve, course_id, week, topic, max(get_settings().rag_top_k, 8))
+    ctx = rag.build_context(chunks) or "(no relevant excerpts found)"
+    safe_topic = re.sub(r"</?topic>", "", topic, flags=re.IGNORECASE)
+    prompt = f"<topic>{safe_topic}</topic>\n<count>{count}</count>\n<context>\n{ctx}\n</context>"
+    obj, trace = await _structured(user, "flashcard_deck", prompts.FLASHCARD_DECK, prompt, DeckSchema, chunks)
+    week_of = {c["title"].strip().lower(): c["week"] for c in chunks}  # authoritative: models mislabel weeks
+    seen: set[str] = set()
+    cards = []
+    for c in obj.cards:
+        key = _norm_front(c.front)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        card = c.model_dump()
+        src = (card["source"] or "").strip().lower()
+        if src in week_of:
+            card["week"] = week_of[src]
+        elif card["source"]:
+            card["source"], card["week"] = None, None  # cited something we did not retrieve
+        else:
+            card["week"] = None
+        cards.append(card)
+        if len(cards) >= count:
+            break
+    cites = rag.citations(chunks)
+    seen_src: set[tuple] = set()
+    sources = []
+    for c in cites:
+        k = (c["title"], c["week"])
+        if k not in seen_src:
+            seen_src.add(k)
+            sources.append({"title": c["title"], "week": c["week"]})
+    return {"topic": topic, "cards": cards, "sources": sources, "trace_id": trace.trace_id}
 
 
 def begin_chat_stream(user: str, query: str) -> StreamSession:

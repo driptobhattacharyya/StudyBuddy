@@ -84,6 +84,8 @@ class MockProvider(AIProvider):
             title = _tag(prompt, "title") or "This topic"
             return " ".join(best) or (f"{title} is a core idea in this course; check the notes for the precise "
                                       "definition and a worked example (mock AI answer).")
+        if system == prompts.FLASHCARD_DECK:
+            return json.dumps({"cards": self._deck(prompt)})
         if system == prompts.HINT:
             return self._hint(prompt)
         if system == prompts.FEEDBACK:
@@ -91,6 +93,36 @@ class MockProvider(AIProvider):
         if system == prompts.COURSE_QA:
             return self._course_answer(prompt)
         return self._chat(prompt)
+
+    @staticmethod
+    def _deck(prompt: str) -> list[dict]:
+        topic = _tag(prompt, "topic") or "this topic"
+        m = re.search(r"<count>\s*(\d+)", prompt)
+        n = int(m.group(1)) if m else 6
+        ctx = _tag(prompt, "context")
+        pairs = []  # (sentence, week, title) from retrieved passages, in retrieval order
+        for m2 in re.finditer(r"\[\d+\] \(Week (\d+) - (.*?)\)\n(.*?)(?=\n\n\[\d+\] \(Week|\Z)", ctx, re.S):
+            for s in _sentences(m2.group(3)):
+                if s not in [p[0] for p in pairs]:
+                    pairs.append((s, int(m2.group(1)), m2.group(2)))
+        kw = _keywords(topic)
+        pairs.sort(key=lambda p: -len(kw & _keywords(p[0])))  # stable: ties keep retrieval order
+        cards = []
+        for i, (sent, week, title) in enumerate(pairs[:n]):
+            words = re.findall(r"[A-Za-z0-9_']+", sent)
+            focus = " ".join(words[:6])
+            cards.append({"front": f"{topic.strip().capitalize()}: what should you know about \"{focus}\"?",
+                          "back": sent, "week": week, "source": title})
+        generic = ["What is the core definition of {t}?", "Why is {t} useful in practice?",
+                   "What is a common mistake when working with {t}?", "How would you explain {t} with a small example?",
+                   "What are the key terms related to {t}?", "How does {t} connect to earlier course topics?"]
+        for g in generic:
+            if len(cards) >= n:
+                break
+            front = g.format(t=topic)
+            cards.append({"front": front, "back": f"A short general answer about {topic} (offline mock AI; "
+                          "check the course notes for precise details).", "week": None, "source": None})
+        return cards[:n]
 
     @staticmethod
     def _summary(text: str) -> str:

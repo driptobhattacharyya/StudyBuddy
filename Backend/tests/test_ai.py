@@ -381,3 +381,101 @@ def test_instructor_shared_flashcard_visible_to_students(client, student, instru
     # and students cannot edit/delete the instructor's card
     shared_id = next(c["_id"] for c in client.get(f"/user/get/course/{course}", headers=student).json() if c["title"] == "Shared")
     assert client.delete(f"/flash_card/delete/{shared_id}", headers=student).status_code == 404
+
+
+# ------------------------------------------------------- flashcard decks ----
+def _deck_json(fronts):
+    return json.dumps({"cards": [{"front": f, "back": f"Answer to {f}", "week": 9, "source": "Trees"} for f in fronts]})
+
+
+def _index_trees(db, course):
+    from ai import rag
+
+    db.course_material.insert_one({"course_id": course, "week": 1, "material_type": "notes", "title": "Trees",
+                                   "content": "A binary search tree keeps smaller keys left. Searching a balanced "
+                                              "binary search tree takes O(log n) time."})
+    rag.reindex_all()
+
+
+def test_generate_deck_shape_dedupe_clip_and_no_persist(client, student, fake_ai, db, course):
+    _index_trees(db, course)
+    fronts = ["What is a tree?", "what is a TREE??", "What is a leaf node?", "What is tree height?",
+              "What is a root node?", "What is a subtree?", "What is tree depth?"]
+    fake_ai.replies = [_deck_json(fronts)]
+    r = client.post("/flash_card/generate_deck", json={"course_id": course, "topic": "trees", "count": 4}, headers=student)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["topic"] == "trees" and body["trace_id"]
+    assert [c["front"] for c in body["cards"]] == ["What is a tree?", "What is a leaf node?", "What is tree height?",
+                                                   "What is a root node?"]
+    assert set(body["cards"][0]) == {"front", "back", "week", "source"}
+    assert {"title": "Trees", "week": 1} in body["sources"]
+    assert db.flashcard.count_documents({}) == 0  # preview only
+    assert db.ai_logs.count_documents({"feature": "flashcard_deck"}) == 1
+    prompt = fake_ai.calls[-1]["prompt"]
+    assert "<topic>trees</topic>" in prompt and "<count>4</count>" in prompt and "binary search tree" in prompt
+
+
+def test_generate_deck_bounds_auth_and_week(client, student, fake_ai, course):
+    base = {"course_id": course, "topic": "trees"}
+    for bad in ({"count": 2}, {"count": 13}, {"topic": "x"}, {"topic": "x" * 121}, {"week": 13}):
+        assert client.post("/flash_card/generate_deck", json={**base, **bad}, headers=student).status_code == 422
+    assert client.post("/flash_card/generate_deck", json=base).status_code in (401, 403)
+    assert client.post("/flash_card/generate_deck", json={**base, "course_id": "NOPE"}, headers=student).status_code == 404
+    fake_ai.replies = [_deck_json(["a b c", "d e f", "g h i"])]
+    r = client.post("/flash_card/generate_deck", json={**base, "week": 1}, headers=student)
+    assert r.status_code == 200 and len(r.json()["cards"]) == 3  # default count 6, fewer returned
+
+
+def test_generate_deck_retries_bad_json_then_fails(client, student, fake_ai, course):
+    fake_ai.replies = ["not json", _deck_json(["What is a tree?"])]
+    r = client.post("/flash_card/generate_deck", json={"course_id": course, "topic": "trees"}, headers=student)
+    assert r.status_code == 200 and len(fake_ai.calls) == 2
+    fake_ai.calls.clear()
+    fake_ai.replies = ["still not json"]
+    r = client.post("/flash_card/generate_deck", json={"course_id": course, "topic": "trees"}, headers=student)
+    assert r.status_code >= 500 or r.status_code == 502
+
+
+def test_generate_deck_rate_limited(client, student, fake_ai, course, monkeypatch):
+    from core import ratelimit
+
+    monkeypatch.setattr(get_settings(), "ai_daily_request_cap", 0)
+    r = client.post("/flash_card/generate_deck", json={"course_id": course, "topic": "trees"}, headers=student)
+    assert r.status_code == 429
+    ratelimit.ai_limiter.reset()
+
+
+def test_create_many_persists_for_caller_and_shared_rules(client, student, instructor, db, course):
+    cards = [{"title": "Q1", "content": "A1", "week": 1}, {"title": "Q2", "content": "A2", "week": 2}]
+    r = client.post("/flash_card/create_many", json={"course_id": course, "cards": cards, "shared": True}, headers=student)
+    assert r.status_code == 201 and len(r.json()["db_entry_ids"]) == 2
+    assert all(c["shared"] is False for c in db.flashcard.find({}))  # students cannot publish
+    r = client.post("/flash_card/create_many", json={"course_id": course, "cards": cards, "shared": True}, headers=instructor)
+    assert r.status_code == 201
+    shared_id = r.json()["db_entry_ids"][0]
+    # student sees own + instructor shared, but cannot delete the shared one
+    assert client.delete(f"/flash_card/delete/{shared_id}", headers=student).status_code == 404
+    assert client.post("/flash_card/create_many", json={"course_id": course, "cards": []}, headers=student).status_code == 422
+    assert client.post("/flash_card/create_many", json={"course_id": "NOPE", "cards": cards}, headers=student).status_code == 404
+    assert client.post("/flash_card/create_many", json={"course_id": course, "cards": cards}).status_code in (401, 403)
+
+
+def test_mock_provider_deck_is_deterministic_and_grounded(client, student, db, course):
+    _index_trees(db, course)
+    a = client.post("/flash_card/generate_deck", json={"course_id": course, "topic": "binary search tree", "count": 5}, headers=student).json()
+    b = client.post("/flash_card/generate_deck", json={"course_id": course, "topic": "binary search tree", "count": 5}, headers=student).json()
+    assert [c["front"] for c in a["cards"]] == [c["front"] for c in b["cards"]]
+    assert len(a["cards"]) == 5 and len({c["front"] for c in a["cards"]}) == 5
+    assert a["cards"][0]["source"] == "Trees" and a["cards"][0]["week"] == 1
+    assert any(c["source"] is None for c in a["cards"])  # filled with general cards
+
+
+def test_deck_week_comes_from_retrieved_source(client, student, fake_ai, db, course):
+    _index_trees(db, course)
+    fake_ai.replies = [json.dumps({"cards": [
+        {"front": "What is a BST?", "back": "b", "week": 9, "source": "Trees"},
+        {"front": "What is a heap?", "back": "b", "week": 9, "source": "Made up note"},
+        {"front": "What is a trie?", "back": "b", "week": 5, "source": None}]})]
+    cards = client.post("/flash_card/generate_deck", json={"course_id": course, "topic": "trees", "count": 3}, headers=student).json()["cards"]
+    assert [(c["week"], c["source"]) for c in cards] == [(1, "Trees"), (None, None), (None, None)]

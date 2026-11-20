@@ -1,27 +1,26 @@
 /**
  * Flashcards. Replaces legacy Flashcard/*.
  * Endpoints: GET /user/get/course/{course_id} -> [{ _id, course_id, week, title, content }]; POST /flash_card/create;
- * PUT /flash_card/update/{id}; DELETE /flash_card/delete/{id}; POST /flash_card/generate { course_id, week, title, content:'' } -> card (+ trace_id?).
+ * PUT /flash_card/update/{id}; DELETE /flash_card/delete/{id}; POST /flash_card/generate_deck + /create_many (see DeckGenerator).
  * Study mode keeps a simple Leitner schedule per card in localStorage (sb:srs:{courseId}).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AlertCircle, Check, GraduationCap, Layers, Pencil, Plus, RefreshCw, RotateCcw, Sparkles, Trash2, X } from 'lucide-react'
-import { createFlashcard, deleteFlashcard, generateFlashcard, getFlashcardsByCourse, updateFlashcard } from '@/lib/services/flashcards'
+import { createFlashcard, deleteFlashcard, getFlashcardsByCourse, updateFlashcard } from '@/lib/services/flashcards'
 import { getErrorMessage } from '@/lib/api'
 import { toast } from '@/lib/toast'
-import { cn } from '@/lib/cn'
 import { useLocalState } from '@/lib/useLocalState'
 import { useCourses } from '@/context/CoursesContext'
 import { PageContainer, PageHeader } from '@/components/layout/PageHeader'
-import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogClose } from '@/components/ui/Dialog'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Input, Select, Textarea } from '@/components/ui/Field'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { Markdown, UnderTheHood } from '@/components/ai'
+import { FlipCard, Markdown } from '@/components/ai'
+import { DeckGenerator } from './DeckGenerator'
 
 const DAY = 86400e3
 const INTERVALS = [0, 1, 3, 7, 14] // days per Leitner box
@@ -60,55 +59,6 @@ function CardFormDialog({ open, onOpenChange, card, defaultWeek, onSave }) {
           <Button type="submit" loading={busy}>{card ? 'Save changes' : 'Create card'}</Button>
         </div>
       </form>
-    </Dialog>
-  )
-}
-
-function GenerateDialog({ open, onOpenChange, courseId, defaultWeek, onCreated }) {
-  const [topic, setTopic] = useState('')
-  const [week, setWeek] = useState(defaultWeek)
-  const [busy, setBusy] = useState(false)
-  const [done, setDone] = useState(null)
-  useEffect(() => { if (open) { setTopic(''); setDone(null); setWeek(defaultWeek) } }, [open, defaultWeek])
-  const submit = async (e) => {
-    e.preventDefault()
-    setBusy(true)
-    try {
-      const card = await generateFlashcard({ courseId, week: Number(week), topic: topic.trim() })
-      onCreated(card)
-      setDone(card)
-      toast.success('Flashcard generated')
-    } catch (err) {
-      toast.error('Could not generate the flashcard', { description: getErrorMessage(err) })
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Generate with AI" description="Name a topic and the AI writes a flashcard from your course material.">
-      {done ? (
-        <div className="space-y-3 pb-2" aria-live="polite">
-          <div className="rounded-xl border border-border bg-surface-2/50 p-4">
-            <p className="font-medium"><Markdown inline>{done.title}</Markdown></p>
-            <div className="mt-2 text-sm text-muted"><Markdown className="prose-sm">{done.content}</Markdown></div>
-          </div>
-          <div className="flex items-center justify-between">
-            <UnderTheHood traceId={done.trace_id} />
-            <div className="flex gap-2"><Button variant="outline" onClick={() => { setDone(null); setTopic('') }}>Another</Button><Button onClick={() => onOpenChange(false)}>Done</Button></div>
-          </div>
-        </div>
-      ) : (
-        <form onSubmit={submit} className="space-y-4 pb-2">
-          <Input label="Topic" required maxLength={200} placeholder="e.g. Binary search trees" value={topic} onChange={(e) => setTopic(e.target.value)} />
-          <Select label="Week" hint="Used to pull the right part of the course material." value={week} onChange={(e) => setWeek(e.target.value)}>
-            {WEEKS.map((w) => <option key={w} value={w}>{wk(w)}</option>)}
-          </Select>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-            <Button type="submit" loading={busy} disabled={!topic.trim()}><Sparkles className="size-4" /> Generate</Button>
-          </div>
-        </form>
-      )}
     </Dialog>
   )
 }
@@ -182,22 +132,15 @@ function StudyMode({ cards, srs, setSrs, onExit, paused }) {
           action={<div className="flex gap-2"><Button variant="outline" onClick={restart}><RotateCcw className="size-4" /> Study again</Button><Button onClick={onExit}>Back to deck</Button></div>} />
       ) : (
         <>
-          <button
-            onClick={() => setFlipped((f) => !f)}
-            aria-label={flipped ? 'Showing the answer. Press space to flip back.' : 'Showing the question. Press space to reveal the answer.'}
-            className="block h-72 w-full rounded-2xl text-left [perspective:1200px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-500 sm:h-80"
-          >
-            <div className="relative h-full w-full transition-transform duration-500 motion-reduce:duration-0" style={{ transformStyle: 'preserve-3d', transform: flipped ? 'rotateY(180deg)' : 'none' }}>
-              <div className="absolute inset-0 flex flex-col items-center justify-center overflow-auto rounded-2xl border border-border bg-surface p-6 text-center shadow-pop" style={{ backfaceVisibility: 'hidden' }}>
-                <Badge variant="brand" className="mb-4">{wk(current.week)}</Badge>
-                <p className="break-words text-xl font-semibold tracking-tight sm:text-2xl"><Markdown inline>{current.title}</Markdown></p>
-                <p className="mt-4 text-xs text-subtle">Tap or press space to flip</p>
-              </div>
-              <div className="absolute inset-0 overflow-auto rounded-2xl border border-brand-300 bg-brand-50 p-6 shadow-pop dark:border-brand-500/40 dark:bg-brand-500/10" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
-                <div className="flex min-h-full items-center justify-center text-center text-[15px]">{flipped ? <Markdown className="prose-sm">{current.content || '_No answer written yet._'}</Markdown> : null}</div>
-              </div>
-            </div>
-          </button>
+          <FlipCard
+            className="h-72 sm:h-80"
+            flipped={flipped}
+            onFlip={setFlipped}
+            label={current.title}
+            topLeft={<Badge variant="brand">{wk(current.week)}</Badge>}
+            front={<span className="text-xl sm:text-2xl"><Markdown inline>{current.title}</Markdown></span>}
+            back={<Markdown className="prose-sm">{current.content || '_No answer written yet._'}</Markdown>}
+          />
           <div className="mt-5 grid grid-cols-2 gap-3">
             <Button variant="outline" size="lg" onClick={() => mark(false)}><X className="size-5 text-red-500" /> Don&apos;t know <kbd className="hidden text-xs text-subtle sm:inline">&larr;</kbd></Button>
             <Button size="lg" onClick={() => mark(true)}><Check className="size-5" /> I know it <kbd className="hidden text-xs text-white/70 sm:inline">&rarr;</kbd></Button>
@@ -216,6 +159,7 @@ export default function StudentFlashcards() {
   const [week, setWeek] = useState('all')
   const [srs, setSrs] = useLocalState(`sb:srs:${courseId}`, {})
   const [studying, setStudying] = useState(false)
+  const [flipped, setFlipped] = useState(() => new Set())
   const [editing, setEditing] = useState(null) // card | 'new'
   const [genOpen, setGenOpen] = useState(false)
   const [deleting, setDeleting] = useState(null)
@@ -234,6 +178,12 @@ export default function StudentFlashcards() {
 
   const weeks = useMemo(() => [...new Set(state.cards.map((c) => c.week))].sort((a, b) => a - b), [state.cards])
   const shown = state.cards.filter((c) => week === 'all' || c.week === Number(week))
+  const groups = useMemo(() => {
+    const m = new Map()
+    for (const c of shown) m.set(c.week, [...(m.get(c.week) ?? []), c])
+    return [...m.entries()].sort((a, b) => a[0] - b[0])
+  }, [shown])
+  const allFlipped = shown.length > 0 && shown.every((c) => flipped.has(idOf(c)))
   const [now] = useState(() => Date.now())
   const dueCount = shown.filter((c) => (srs[idOf(c)]?.due ?? 0) <= now).length
   const defaultWeek = week === 'all' ? 1 : Number(week)
@@ -294,30 +244,40 @@ export default function StudentFlashcards() {
               {weeks.map((w) => <option key={w} value={w}>{wk(w)}</option>)}
             </Select>
             <p className="text-sm text-muted">{shown.length} card{shown.length === 1 ? '' : 's'} - {dueCount} due for review</p>
+            <Button variant="outline" size="sm" className="ml-auto" onClick={() => setFlipped(allFlipped ? new Set() : new Set(shown.map(idOf)))}>
+              {allFlipped ? <><RotateCcw className="size-4" /> Reset</> : <><Layers className="size-4" /> Flip all</>}
+            </Button>
           </div>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {shown.map((c) => (
+          {groups.map(([w, cardsIn]) => (
+            <section key={w} className="mb-8" aria-labelledby={`wk-${w}`}>
+              <h2 id={`wk-${w}`} className="mb-3 text-sm font-semibold uppercase tracking-wide text-subtle">{wk(w)} <span className="font-normal normal-case">({cardsIn.length})</span></h2>
+              <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {cardsIn.map((c) => (
               <li key={idOf(c)}>
-                <Card className="group flex h-full flex-col p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <Badge variant="brand">{wk(c.week)}</Badge>
-                    {c.shared ? <Badge>From your instructor</Badge> : <div className="flex gap-0.5">
-                      <button aria-label={`Edit ${c.title}`} onClick={() => setEditing(c)} className="rounded-md p-1.5 text-subtle hover:bg-surface-2 hover:text-fg"><Pencil className="size-4" /></button>
-                      <button aria-label={`Delete ${c.title}`} onClick={() => setDeleting(c)} className="rounded-md p-1.5 text-subtle hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"><Trash2 className="size-4" /></button>
-                    </div>}
-                  </div>
-                  <h2 className="mt-3 break-words font-semibold leading-snug tracking-tight"><Markdown inline>{c.title}</Markdown></h2>
-                  <p className={cn('mt-1.5 line-clamp-4 break-words text-sm text-muted', !c.content && 'italic')}>{c.content ? <Markdown inline>{c.content}</Markdown> : 'No answer written yet.'}</p>
-                  {srs[idOf(c)] && <p className="mt-auto pt-3 text-xs text-subtle">Box {srs[idOf(c)].box + 1} of {INTERVALS.length}</p>}
-                </Card>
+                <FlipCard
+                  className="h-52"
+                  flipped={flipped.has(idOf(c))}
+                  onFlip={(f) => setFlipped((prev) => { const n = new Set(prev); if (f) n.add(idOf(c)); else n.delete(idOf(c)); return n })}
+                  label={c.title}
+                  topLeft={<Badge variant="brand">{wk(c.week)}</Badge>}
+                  topRight={c.shared ? <Badge>From your instructor</Badge> : <>
+                    <button type="button" aria-label={`Edit ${c.title}`} onClick={() => setEditing(c)} className="rounded-md p-1.5 text-subtle hover:bg-surface-2 hover:text-fg"><Pencil className="size-4" /></button>
+                    <button type="button" aria-label={`Delete ${c.title}`} onClick={() => setDeleting(c)} className="rounded-md p-1.5 text-subtle hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"><Trash2 className="size-4" /></button>
+                  </>}
+                  front={<Markdown inline>{c.title}</Markdown>}
+                  back={c.content ? <Markdown className="prose-sm">{c.content}</Markdown> : <span className="italic text-muted">No answer written yet.</span>}
+                />
+                {srs[idOf(c)] && <p className="mt-1.5 text-xs text-subtle">Box {srs[idOf(c)].box + 1} of {INTERVALS.length}</p>}
               </li>
             ))}
-          </ul>
+              </ul>
+            </section>
+          ))}
         </>
       )}
 
       <CardFormDialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)} card={editing === 'new' ? null : editing} defaultWeek={defaultWeek} onSave={save} />
-      <GenerateDialog open={genOpen} onOpenChange={setGenOpen} courseId={courseId} defaultWeek={defaultWeek} onCreated={(c) => setState((s) => ({ ...s, cards: [c, ...s.cards] }))} />
+      <DeckGenerator open={genOpen} onOpenChange={setGenOpen} courseId={courseId} onSaved={load} />
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)} title="Delete this flashcard?" description={deleting?.title}
         footer={<><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button variant="danger" loading={delBusy} onClick={remove}>Delete</Button></>}>
         <p className="text-sm text-muted">This cannot be undone.</p>

@@ -16,3 +16,22 @@ class FlashCardUpdate(BaseModel):
     week: Optional[int] = Field(default=None, ge=0, le=12)
     title: Optional[str] = Field(default=None, min_length=1, max_length=200)
     content: Optional[str] = None
+
+
+class DeckRequest(BaseModel):
+    course_id: str
+    topic: str = Field(min_length=2, max_length=120)
+    count: int = Field(6, ge=3, le=12)
+    week: Optional[int] = Field(default=None, ge=0, le=12, description="Only use material up to this week")
+
+
+class DeckCardIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=4000)
+    week: int = Field(ge=0, le=12)
+
+
+class CreateMany(BaseModel):
+    course_id: str
+    cards: list[DeckCardIn] = Field(min_length=1, max_length=20)
+    shared: bool = Field(False, description="Instructors only: publish the cards to every student of the course")

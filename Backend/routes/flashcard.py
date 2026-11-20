@@ -5,7 +5,7 @@ from ai.errors import AIError, to_http
 from core.deps import AIUser
 from core.security import CurrentUser
 from database.db import db
-from models.flashcard import FlashCard, FlashCardUpdate
+from models.flashcard import CreateMany, DeckRequest, FlashCard, FlashCardUpdate
 from utils.lookup import ensure_course
 from utils.response import objectEntity, parse_object_id, responses
 from utils.validation import NotExistsError
@@ -75,3 +75,25 @@ async def generate_flashcard(flashcard_input: FlashCard, user: AIUser):
     card["trace_id"] = result["trace_id"]
     card["sources"] = result["sources"]
     return card
+
+
+@fc.post("/generate_deck", responses=responses)
+async def generate_deck(body: DeckRequest, user: AIUser):
+    """Preview a deck of one-concept cards for a broad topic. Nothing is saved (see /create_many)."""
+    from fastapi.concurrency import run_in_threadpool
+
+    await run_in_threadpool(ensure_course, body.course_id)
+    try:
+        return await ai_service.flashcard_deck(user.email, body.course_id, body.week, body.topic, body.count)
+    except AIError as exc:
+        raise to_http(exc) from None
+
+
+@fc.post("/create_many", status_code=201, responses=responses)
+def create_many(body: CreateMany, user: CurrentUser):
+    ensure_course(body.course_id)
+    shared = bool(body.shared and user.is_instructor)  # same rule as /create
+    docs = [{"user_id": user.user_id, "course_id": body.course_id, "week": c.week, "title": c.title,
+             "content": c.content, "shared": shared} for c in body.cards]
+    res = db.flashcard.insert_many(docs)
+    return {"message": "success", "db_entry_ids": [str(i) for i in res.inserted_ids]}

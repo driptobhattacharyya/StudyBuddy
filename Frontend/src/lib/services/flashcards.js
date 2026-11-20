@@ -29,3 +29,14 @@ export const deleteFlashcard = (id) => api.delete(`/flash_card/delete/${id}`).th
  */
 export const generateFlashcard = ({ courseId, week, topic }) =>
   api.post('/flash_card/generate', { course_id: courseId, week, title: topic, content: '' }).then((r) => r.data)
+
+/**
+ * POST /flash_card/generate_deck { course_id, topic, count, week? } -> { topic, cards: [{ front, back, week, source }], sources, trace_id }
+ * Preview only: nothing is saved until createManyFlashcards.
+ */
+export const generateDeck = ({ courseId, topic, count = 6, week }) =>
+  api.post('/flash_card/generate_deck', { course_id: courseId, topic, count, ...(week != null ? { week } : {}) }).then((r) => r.data)
+
+/** POST /flash_card/create_many { course_id, cards: [{ title, content, week }] } -> { db_entry_ids } */
+export const createManyFlashcards = ({ courseId, cards }) =>
+  api.post('/flash_card/create_many', { course_id: courseId, cards }).then((r) => r.data)
