@@ -4,7 +4,7 @@
 
 An AI-assisted learning management system: courses, weekly notes, graded assignments with sandboxed coding questions, flashcards, and a course-aware AI tutor that answers from the material.
 
-Live demo: https://study-buddy-web-h7r8.onrender.com (sign in with one click as a student, instructor or admin). The API is on Render's free plan and sleeps when idle, so the first request can take up to a minute.
+Live demo: https://studybuddy.driptobhattacharyya.com (served by a Cloudflare Worker; the API origin is https://study-buddy-api-8i28.onrender.com; sign in with one click as a student, instructor or admin). The API is on Render's free plan and sleeps when idle, so the first request can take up to a minute.
 
 ## Screenshots
 

@@ -121,6 +121,18 @@ Keep the daily cap (`AI_DAILY_REQUEST_CAP`) and per-minute limits in place to co
 4. Make sure `FRONTEND_URL` is the site URL. After sign-in the API redirects to `${FRONTEND_URL}/auth/callback` with the token in the URL fragment.
 5. Only verified Google email addresses are accepted. Use `INSTRUCTOR_EMAILS` and `ADMIN_EMAILS` to give instructor or admin roles; everyone else is a student.
 
+## Cloudflare (production)
+
+Production is https://studybuddy.driptobhattacharyya.com. One Cloudflare Worker (`studybuddy`, in [`deploy/cloudflare/`](../deploy/cloudflare)) serves the built SPA and proxies `/api/*` to the Render API, so the browser sees a single origin (no CORS, one certificate). The Render API is only the origin.
+
+* **Static files:** `Frontend/dist` as Workers static assets with SPA fallback. Security headers, `no-cache` for `index.html` and immutable caching for `/assets/*` come from `Frontend/public/_headers`. No CSP is set: it was not verified against Monaco's web workers, jsPDF and inline styles.
+* **API proxy:** `/api/x` becomes `https://study-buddy-api-8i28.onrender.com/x` (method, headers, body and query preserved, WebSockets supported, never cached). Idempotent requests are retried once after 2 s on 502/503/504 or a network error.
+* **Keep-warm:** a cron trigger calls `/health` every 10 minutes so the free Render instance rarely sleeps.
+* **Build:** the frontend is built with `VITE_API_URL=https://studybuddy.driptobhattacharyya.com/api`.
+* **Deploy by hand:** `cd deploy/cloudflare && npm ci && npm run deploy` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set. The custom domain is created from `routes` in `wrangler.jsonc`.
+* **Deploy from CI:** add repository secrets `CLOUDFLARE_API_TOKEN` (Workers edit and DNS edit for the zone) and `CLOUDFLARE_ACCOUNT_ID`. `.github/workflows/deploy-cloudflare.yml` then deploys on pushes to `main` that touch `Frontend/` or `deploy/cloudflare/`; without the secrets its steps are skipped.
+* **API settings:** set `FRONTEND_URL=https://studybuddy.driptobhattacharyya.com` on the Render API. For Google sign-in use `GOOGLE_REDIRECT_URI=https://studybuddy.driptobhattacharyya.com/api/oauth/callback` (also add it in Google Cloud Console), since the browser reaches the API under `/api`.
+
 ## Free-tier caveats
 
 * **Sleep.** The API sleeps when idle. The first request after a sleep can take up to a minute while it starts.

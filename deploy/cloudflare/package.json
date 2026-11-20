@@ -1,0 +1,14 @@
+{
+  "name": "studybuddy-cloudflare",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cloudflare Worker that serves the Study Buddy SPA and proxies /api/* to the Render API",
+  "scripts": {
+    "build": "npm --prefix ../../Frontend ci && VITE_API_URL=https://studybuddy.driptobhattacharyya.com/api npm --prefix ../../Frontend run build",
+    "dev": "wrangler dev",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.165.0"
+  }
+}

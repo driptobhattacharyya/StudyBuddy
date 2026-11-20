@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "studybuddy",
+  "main": "src/index.js",
+  "compatibility_date": "2025-11-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "../../Frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "routes": [
+    { "pattern": "studybuddy.driptobhattacharyya.com", "custom_domain": true }
+  ],
+  "triggers": { "crons": ["*/10 * * * *"] },
+  "vars": { "API_ORIGIN": "https://study-buddy-api-8i28.onrender.com" },
+  "observability": { "enabled": true }
+}
