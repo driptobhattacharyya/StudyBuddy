@@ -53,7 +53,9 @@ api.interceptors.response.use(
 /** Build a ws:// or wss:// URL for a backend WebSocket path, with the JWT as `?token=`. */
 export function wsUrl(path) {
   const base = API_URL.replace(/^http/, 'ws')
-  const url = new URL(path.startsWith('/') ? path : `/${path}`, base.endsWith('/') ? base : `${base}/`)
+  // Resolve relative to the base so a path prefix in VITE_API_URL (e.g. https://host/api) is kept;
+  // a leading "/" would make the path absolute and drop that prefix.
+  const url = new URL(path.replace(/^\/+/, ''), base.endsWith('/') ? base : `${base}/`)
   const token = getToken()
   if (token) url.searchParams.set('token', token)
   return url.toString()
