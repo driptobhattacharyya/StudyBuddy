@@ -1,11 +1,13 @@
 # Deployment
 
-This guide deploys Study Buddy to Render: a Docker web service for the API (`Backend/`) and a static site for the frontend (`Frontend/`). The live demo runs this way on Render's free plan in Singapore:
+This guide deploys Study Buddy in two parts:
 
-* Site: https://study-buddy-web-h7r8.onrender.com
-* API: https://study-buddy-api-8i28.onrender.com
+* **API** (`Backend/`): a Docker web service on Render's free plan in Singapore. The live API is https://study-buddy-api-8i28.onrender.com. It deploys from the `main` branch.
+* **Frontend** (`Frontend/`): served by a Cloudflare Worker at https://studybuddy.driptobhattacharyya.com, which also proxies `/api/*` to the Render API. See [Cloudflare (production)](#cloudflare-production).
 
-Two routes are described. The Blueprint route uses [`render.yaml`](../render.yaml) and is the quickest. The manual route creates the same two services by hand.
+Render serves only the API. There is no Render static site.
+
+Two routes are described for the API. The Blueprint route uses [`render.yaml`](../render.yaml) and is the quickest. The manual route creates the same service by hand.
 
 ## Before you start
 
@@ -17,46 +19,29 @@ The hosted demo currently uses an in-memory database (`MONGODB_URI=mongomock://`
 
 ## Route 1: Blueprint (recommended)
 
-1. In the Render dashboard, choose **New** > **Blueprint** and select the repository and branch. Render reads `render.yaml` and proposes two services: `study-buddy-api` and `study-buddy-web`.
+1. In the Render dashboard, choose **New** > **Blueprint** and select the repository and the `main` branch. Render reads `render.yaml` and proposes one service: `study-buddy-api`.
 2. Fill in the values that the Blueprint marks as secret (`sync: false`) before the first deploy:
    * `MONGODB_URI`: `mongomock://` for the in-memory demo, or an Atlas connection string.
    * `SECRET_KEY`: a long random string, for example `python -c "import secrets;print(secrets.token_urlsafe(48))"`.
    * `OPENAI_API_KEY`: optional; without it the offline `mock` provider answers in demo mode.
-   * `FRONTEND_URL` and `CORS_ORIGINS`: the static site URL with no trailing slash, for example `https://study-buddy-web-h7r8.onrender.com`.
+   * `FRONTEND_URL` and `CORS_ORIGINS`: the Cloudflare site URL with no trailing slash, `https://studybuddy.driptobhattacharyya.com`.
    * `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: optional, see [Google sign-in](#google-sign-in).
-3. Apply the Blueprint and wait for both services to deploy.
-4. Check the URLs. The Blueprint hard-codes `VITE_API_URL`, `FRONTEND_URL` and `CORS_ORIGINS` to the expected host names. If Render gave a service a different URL (the live demo's API is `study-buddy-api-8i28.onrender.com`), update:
-   * `VITE_API_URL` on the static site to the API's actual URL, then redeploy the site. This value is baked into the build, so a rebuild is required.
-   * `FRONTEND_URL` and `CORS_ORIGINS` on the API to the site's actual URL. The API restarts with the new values.
-5. Open the site and the health endpoint:
+3. Apply the Blueprint and wait for the service to deploy.
+4. Check the URL. If Render gave the service a different URL than `study-buddy-api-8i28.onrender.com`, the Cloudflare Worker's `API_ORIGIN` in `deploy/cloudflare/wrangler.jsonc` must point to the new URL and the Worker must be redeployed.
+5. Check the health endpoint:
    ```bash
    curl https://<api-host>/health
    ```
+6. Deploy the frontend to Cloudflare as described in [Cloudflare (production)](#cloudflare-production).
 
-## Route 2: Manual, two services
+## Route 2: Manual API service
 
-### API (Docker web service)
-
-1. **New** > **Web Service**, connect the repository.
+1. **New** > **Web Service**, connect the repository and select the `main` branch.
 2. Runtime: **Docker**. Dockerfile path: `./Backend/Dockerfile`. Docker build context: `./Backend`.
 3. Plan: **Free**. Health check path: `/health`.
-4. Add the environment variables from the [table below](#environment-variables). The image listens on `$PORT`, which Render sets.
+4. Add the environment variables from the [table below](#environment-variables). The image listens on `$PORT`, which Render sets. Set `FRONTEND_URL` and `CORS_ORIGINS` to `https://studybuddy.driptobhattacharyya.com`.
 5. Deploy. Note the service URL.
-
-### Frontend (static site)
-
-1. **New** > **Static Site**, connect the same repository.
-2. Build command: `cd Frontend && npm ci && npm run build`
-3. Publish directory: `Frontend/dist`
-4. Environment variables:
-   * `NODE_VERSION=22`
-   * `VITE_API_URL=<the API URL from the previous step>` (no trailing slash; build-time value)
-5. **Redirects/Rewrites**: add a rule with source `/*`, destination `/index.html`, action **Rewrite**. This lets client-side routes such as `/app/notes` load on refresh.
-6. Deploy and note the site URL.
-
-### Connect the two
-
-Set `FRONTEND_URL` and `CORS_ORIGINS` on the API to the site URL, then let the API redeploy. The API needs the site URL for sign-in redirects and CORS, and the site needs the API URL at build time, so the first deploy of each service may need a second pass.
+6. Deploy the frontend to Cloudflare as described in [Cloudflare (production)](#cloudflare-production).
 
 ## Environment variables
 
@@ -81,14 +66,12 @@ Variables marked secret must be entered in the Render dashboard and never commit
 | `GOOGLE_CLIENT_ID` | API | no | dashboard | Enables Google sign-in together with the secret below |
 | `GOOGLE_CLIENT_SECRET` | API | yes | dashboard | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | API | no | dashboard | `https://<api-host>/oauth/callback`. Not in the Blueprint; default is `http://localhost:8000/oauth/callback` |
-| `FRONTEND_URL` | API | no | dashboard | Site URL. The API redirects to `${FRONTEND_URL}/auth/callback` after sign-in |
-| `CORS_ORIGINS` | API | no | dashboard | Comma-separated browser origins, for example the site URL |
+| `FRONTEND_URL` | API | no | dashboard | Site URL, `https://studybuddy.driptobhattacharyya.com`. The API redirects to `${FRONTEND_URL}/auth/callback` after sign-in |
+| `CORS_ORIGINS` | API | no | dashboard | Comma-separated browser origins, for example `https://studybuddy.driptobhattacharyya.com` |
 | `INSTRUCTOR_EMAILS`, `ADMIN_EMAILS` | API | no | optional | Comma-separated emails that receive those roles on sign-in |
 | `AI_DAILY_REQUEST_CAP` | API | no | optional | Global AI calls per UTC day, default `500` |
 | `RATE_LIMIT_AI_PER_MINUTE` | API | no | optional | Per-user AI calls per minute, default `20` |
 | `LOG_LEVEL` | API | no | optional | Default `INFO` |
-| `VITE_API_URL` | Site | no | Blueprint | API base URL, baked in at build time. Rebuild the site after changing it |
-| `NODE_VERSION` | Site | no | Blueprint: `22` | Node.js version for the build |
 
 ## Switching to Atlas
 
@@ -123,7 +106,7 @@ Keep the daily cap (`AI_DAILY_REQUEST_CAP`) and per-minute limits in place to co
 
 ## Cloudflare (production)
 
-Production is https://studybuddy.driptobhattacharyya.com. One Cloudflare Worker (`studybuddy`, in [`deploy/cloudflare/`](../deploy/cloudflare)) serves the built SPA and proxies `/api/*` to the Render API, so the browser sees a single origin (no CORS, one certificate). The Render API is only the origin.
+Production is https://studybuddy.driptobhattacharyya.com. One Cloudflare Worker (`studybuddy`, in [`deploy/cloudflare/`](../deploy/cloudflare)) serves the built SPA and proxies `/api/*` to the Render API, so the browser sees a single origin (no CORS, one certificate). The Render API is only the origin. The frontend is not hosted on Render.
 
 * **Static files:** `Frontend/dist` as Workers static assets with SPA fallback. Security headers, `no-cache` for `index.html` and immutable caching for `/assets/*` come from `Frontend/public/_headers`. No CSP is set: it was not verified against Monaco's web workers, jsPDF and inline styles.
 * **API proxy:** `/api/x` becomes `https://study-buddy-api-8i28.onrender.com/x` (method, headers, body and query preserved, WebSockets supported, never cached). Idempotent requests are retried once after 2 s on 502/503/504 or a network error.

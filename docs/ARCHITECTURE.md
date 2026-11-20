@@ -4,7 +4,7 @@ Study Buddy is a two-part application: a FastAPI backend (`Backend/`) backed by 
 
 ## Deployment topology
 
-The hosted demo runs on Render's free plan: the API as a Docker web service built from `Backend/Dockerfile`, and the frontend as a static site built from `Frontend/`, with a rewrite of all routes to `index.html`. The API uses the in-memory database (`mongomock://`), so it resets on every restart and reseeds demo data at start-up. Production uses MongoDB Atlas. The step-by-step setup is in [DEPLOYMENT.md](DEPLOYMENT.md).
+The hosted demo is split across two providers. The frontend is built from `Frontend/` and served by a Cloudflare Worker (`studybuddy`, in `deploy/cloudflare/`) at https://studybuddy.driptobhattacharyya.com. The Worker serves the SPA with a fallback to `index.html` and proxies `/api/*` to the API. The API is a Docker web service on Render's free plan, built from `Backend/Dockerfile`. The browser sees one origin, so CORS is not needed for the hosted demo. The API uses the in-memory database (`mongomock://`), so it resets on every restart and reseeds demo data at start-up. Production uses MongoDB Atlas. The step-by-step setup is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Components
 

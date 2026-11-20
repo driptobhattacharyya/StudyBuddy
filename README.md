@@ -96,8 +96,8 @@ All backend settings are environment variables (template: [`Backend/.env.example
 | `SECRET_KEY` | generated at start-up | JWT signing key. Set it in any real deployment |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | empty | Enables Google sign-in |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/oauth/callback` | OAuth callback registered with Google |
-| `FRONTEND_URL` | `http://localhost:5173` | Where the backend redirects after sign-in |
-| `CORS_ORIGINS` | localhost dev origins | Comma-separated browser origins allowed by CORS |
+| `FRONTEND_URL` | `http://localhost:5173` | Where the backend redirects after sign-in (production: `https://studybuddy.driptobhattacharyya.com`) |
+| `CORS_ORIGINS` | localhost dev origins | Comma-separated browser origins allowed by CORS (production: `https://studybuddy.driptobhattacharyya.com`) |
 | `INSTRUCTOR_EMAILS`, `ADMIN_EMAILS` | empty | Comma-separated emails that receive those roles on sign-in |
 | `DEMO_MODE` | `false` | Enables one-click demo logins (`POST /auth/demo`) |
 | `SEED_DEMO_ON_STARTUP` | `false` | Seeds the demo dataset on start-up (idempotent) |
@@ -127,7 +127,7 @@ The backend suite runs offline: it uses mongomock, a fake AI provider and mocked
 
 ## Deployment
 
-The app deploys to Render as a Docker web service (API) and a static site (frontend) from [`render.yaml`](render.yaml). The full step-by-step guide, including the manual route, the environment variable table, Atlas, real AI, Google sign-in and hardening, is in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+The API deploys to Render as a Docker web service from [`render.yaml`](render.yaml). The frontend is served by a Cloudflare Worker ([`deploy/cloudflare/`](deploy/cloudflare)), which also proxies `/api/*` to the Render API. The full step-by-step guide, including the manual route, the environment variable table, Atlas, real AI, Google sign-in and hardening, is in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Project structure
 
