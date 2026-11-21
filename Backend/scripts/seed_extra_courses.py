@@ -9,8 +9,9 @@ Adds three full courses on top of the demo set, each organised by week:
 Together: 38 YouTube lectures with notes, 16 weekly reading notes, 160 MCQ/MSQ/numeric questions
 (activity, practice and graded) and 15 auto-graded Python problems.
 
-Safe to run repeatedly. Courses, notes and questions are updated in place, but deadlines and the
-``evaluated`` flag are only set the first time. Lectures are created once and never overwritten,
+Re-running resets these courses' seeded questions, notes and week titles to the shipped text ($set keyed by
+question text); deadlines and the
+``evaluated`` flag are only set the first time. Lectures are seeded once per course (marker) and never overwritten or restored,
 so instructor edits survive. Lectures whose video ids have not been checked yet are listed in
 ``PENDING_LECTURES`` in each data file and are skipped unless ``--include-unverified`` is given.
 """
@@ -22,6 +23,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from scripts.extra_courses import bio01, cs01, ma01
+from scripts.lecture_seed import seed_lectures_once
 
 COURSES = [cs01, ma01, bio01]
 _YT_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
@@ -70,8 +72,7 @@ def validate(data: dict) -> list[str]:
 def write(db, data: dict) -> None:
     cid = data["course"]["course_id"]
     db.course.update_one({"course_id": cid}, {"$set": data["course"]}, upsert=True)
-    for lec in data["lectures"]:
-        db.lecture.update_one({"course_id": cid, "youtube_id": lec["youtube_id"]}, {"$setOnInsert": lec}, upsert=True)
+    seed_lectures_once(db, cid, data["lectures"])
     for n in data["notes"]:
         db.course_material.update_one({"course_id": cid, "material_type": "notes", "title": n["title"]}, {"$set": n}, upsert=True)
 

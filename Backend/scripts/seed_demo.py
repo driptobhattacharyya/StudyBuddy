@@ -17,6 +17,7 @@ from core.config import get_settings
 from core.logging import configure_logging
 from core.security import ADMIN, INSTRUCTOR, STUDENT, create_user, ensure_demo_user
 from database.db import db, ensure_indexes
+from scripts.lecture_seed import seed_lectures_once
 from scripts.seed_content import CODING, COURSES, FLASHCARDS, LECTURES, STARTER_CODE
 from utils.grading import submit_and_grade
 
@@ -65,6 +66,7 @@ def reset_demo_data() -> None:
     for name in ("course_material", "lecture", "assignment", "coding_assignment", "marks", "assignment_mark", "rag_chunks", "notes", "flashcard"):
         db[name].delete_many({"course_id": {"$in": ids}})
     db.submission.delete_many({"assgn_id": {"$in": qids}})
+    db.seed_markers.delete_many({"_id": {"$in": [f"lectures:{c}" for c in ids]}})
     db.course.delete_many({"course_id": {"$in": ids}})
 
 
@@ -100,14 +102,16 @@ def seed(reset: bool = False) -> dict[str, Any]:
                     "options": options, "answers": answers, "deadline": now + timedelta(days=days)})
                 counts["assignments"] += 1
 
-    # Created once, matched on the video: after that a lecture belongs to the instructor, and edits,
-    # moves or new lectures made in the UI survive later runs (``--reset`` starts over).
+    # Seeded once per course (``seed_markers``): after that lectures belong to the instructor, and deletes,
+    # edits, moves or new lectures made in the UI survive later runs (``--reset`` starts over).
+    by_course: dict[str, list[dict]] = {}
     for cid, week, order, title, video, source, description, notes in LECTURES:
-        db.lecture.update_one({"course_id": cid, "youtube_id": video}, {"$setOnInsert": {
+        by_course.setdefault(cid, []).append({
             "course_id": cid, "week": week, "order": order, "title": title, "youtube_id": video,
             "youtube_url": f"https://www.youtube.com/watch?v={video}", "source": source,
-            "description": description, "notes": notes, "duration": None, "resources": []}}, upsert=True)
-        counts["lectures"] += 1
+            "description": description, "notes": notes, "duration": None, "resources": []})
+    for cid, rows in by_course.items():
+        counts["lectures"] += seed_lectures_once(db, cid, rows)
 
     for c in CODING:
         tests = lambda pairs: [{"input": i, "output": o} for i, o in pairs]  # noqa: E731

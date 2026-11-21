@@ -91,7 +91,7 @@ python -m scripts.seed_extra_courses --dry-run     # check the data; no database
 python -m scripts.seed_extra_courses --enrol-demo  # load them and enrol the demo student
 ```
 
-Re-running is safe: deadlines are only set the first time, and lectures are created once, so edits made in the UI are kept.
+Re-running is not a no-op: it resets these courses' seeded questions, reading notes and week titles to the shipped text (matched on question text / note title). Deadlines are only set the first time, and lectures are seeded once per course (a `seed_markers` entry), so lecture edits and deletes made in the UI are kept.
 Candidate lectures whose video ids have not been checked yet are listed in `UNVERIFIED_LECTURES` (`scripts/seed_content.py`) and
 `PENDING_LECTURES` (`scripts/extra_courses/*.py`) and are not loaded by default.
 

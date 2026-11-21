@@ -185,8 +185,11 @@ test('instructor adds a lecture from a YouTube link', async ({ page }) => {
   const problems = guard(page)
   await stubYouTube(page)
   await loginFromLanding(page, 'instructor')
+  await expect(page).toHaveURL(/\/instructor$/) // let the demo login finish before navigating away
   await page.goto('/instructor/courses/ML301/lectures')
-  await expect(page.getByText('A gentle introduction to machine learning')).toBeVisible()
+  // Do not depend on which lectures a persistent database happens to hold: wait for the page, not a seeded title.
+  await expect(page.getByRole('heading', { name: 'Lectures', level: 1 })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Add lecture' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Add lecture' }).first().click()
   const dialog = page.getByRole('dialog', { name: 'Add a lecture' })
   await dialog.getByLabel(/YouTube link/).fill('not a link')
@@ -197,6 +200,10 @@ test('instructor adds a lecture from a YouTube link', async ({ page }) => {
   await expect(dialog.locator('iframe[title="Video preview"]')).toBeVisible()
   await dialog.getByRole('button', { name: 'Add lecture' }).click()
   await expect(page.getByText('E2E: Neural networks')).toBeVisible()
+  // clean up so repeated runs against a persistent database do not accumulate lectures
+  await page.getByRole('button', { name: /^Delete .*E2E: Neural networks/ }).click()
+  await page.getByRole('dialog', { name: 'Remove this lecture?' }).getByRole('button', { name: 'Remove' }).click()
+  await expect(page.getByText('E2E: Neural networks')).toHaveCount(0)
   expect(problems).toEqual([])
 })
 

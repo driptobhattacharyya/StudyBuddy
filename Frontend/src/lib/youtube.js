@@ -1,17 +1,27 @@
-const PATTERNS = [
-  /youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/)([A-Za-z0-9_-]{11})/,
-  /youtu\.be\/([A-Za-z0-9_-]{11})/,
-  /^([A-Za-z0-9_-]{11})$/,
-]
+const ID = /^[A-Za-z0-9_-]{11}$/
+const HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com'])
+const PREFIXES = new Set(['embed', 'shorts', 'live', 'v'])
 
-/** Video id from any YouTube link (watch, youtu.be, embed, shorts, live) or a bare id; null if none. */
+/** Video id from a YouTube link (watch, youtu.be, embed, shorts, live) or a bare id; null if none. Mirrors the API. */
 export function youtubeId(value) {
   const v = String(value ?? '').trim()
-  for (const p of PATTERNS) {
-    const m = v.match(p)
-    if (m) return m[1]
+  if (ID.test(v)) return v
+  let url
+  try {
+    url = new URL(v)
+  } catch {
+    return null
   }
-  return null
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null
+  const host = url.hostname.toLowerCase()
+  const parts = url.pathname.split('/').filter(Boolean)
+  let id = null
+  if (host === 'youtu.be' && parts.length === 1) id = parts[0]
+  else if (HOSTS.has(host)) {
+    if (parts.length === 1 && parts[0] === 'watch') id = url.searchParams.get('v')
+    else if (parts.length === 2 && PREFIXES.has(parts[0])) id = parts[1]
+  }
+  return id && ID.test(id) ? id : null
 }
 
 export const embedUrl = (id) => `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1`

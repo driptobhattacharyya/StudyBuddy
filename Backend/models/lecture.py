@@ -1,27 +1,44 @@
 """Video lectures: one YouTube video per lecture, grouped by week and ordered within the week."""
 import re
+from urllib.parse import parse_qs, urlsplit
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
 from models.course import _check_url
 
-_YT_ID = r"[A-Za-z0-9_-]{11}"
-_YT_PATTERNS = [
-    re.compile(rf"youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|live/|v/)({_YT_ID})"),
-    re.compile(rf"youtu\.be/({_YT_ID})"),
-    re.compile(rf"^({_YT_ID})$"),
-]
+_YT_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+_YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com"}
+_YT_PATH_PREFIXES = ("embed", "shorts", "live", "v")
 
 
 def extract_youtube_id(value: str) -> str:
-    """Video id from any common YouTube link shape (watch, youtu.be, embed, shorts, live) or a bare id."""
+    """Video id from a YouTube link (watch, youtu.be, embed, shorts, live) or a bare id; anything else is rejected."""
     value = (value or "").strip()
-    for pattern in _YT_PATTERNS:
-        match = pattern.search(value)
-        if match:
-            return match.group(1)
+    if _YT_ID.match(value):
+        return value
+    try:
+        url = urlsplit(value)
+        host = (url.hostname or "").lower()
+    except ValueError:
+        raise ValueError("Not a YouTube link or video id") from None
+    candidate = None
+    if url.scheme in ("http", "https") and not url.username and not url.password:
+        parts = [p for p in url.path.split("/") if p]
+        if host == "youtu.be" and len(parts) == 1:
+            candidate = parts[0]
+        elif host in _YT_HOSTS:
+            if parts == ["watch"]:
+                candidate = (parse_qs(url.query).get("v") or [None])[0]
+            elif len(parts) == 2 and parts[0] in _YT_PATH_PREFIXES:
+                candidate = parts[1]
+    if candidate and _YT_ID.match(candidate):
+        return candidate
     raise ValueError("Not a YouTube link or video id")
+
+
+def canonical_youtube_url(video_id: str) -> str:
+    return f"https://www.youtube.com/watch?v={video_id}"
 
 
 class LectureResource(BaseModel):
@@ -45,8 +62,7 @@ class LectureUpdate(BaseModel):
     @field_validator("youtube_url")
     @classmethod
     def _valid_youtube(cls, value: str) -> str:
-        extract_youtube_id(value)
-        return value.strip()
+        return canonical_youtube_url(extract_youtube_id(value))
 
 
 class Lecture(LectureUpdate):

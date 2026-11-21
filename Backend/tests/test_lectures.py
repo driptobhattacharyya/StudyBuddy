@@ -74,6 +74,78 @@ def test_demo_seed_lectures_are_created_once(client, db, instructor):
     assert db.lecture.count_documents({}) == len(LECTURES)
 
 
+def test_deleted_seeded_lecture_does_not_come_back(client, db, instructor):
+    seed()
+    victim = db.lecture.find_one({"course_id": "PY101"})
+    assert client.delete(f"/lecture/delete/{victim['_id']}", headers=instructor).status_code == 200
+    seed()
+    assert db.lecture.count_documents({}) == len(LECTURES) - 1
+    assert db.lecture.find_one({"_id": victim["_id"]}) is None
+
+
+def test_changed_video_is_not_reseeded_as_duplicate(client, db, instructor):
+    seed()
+    row = db.lecture.find_one({"course_id": "PY101"})
+    upd = {"week": row["week"], "order": row["order"], "title": row["title"], "youtube_url": "https://youtu.be/fNk_zzaMoSs"}
+    assert client.put(f"/lecture/update/{row['_id']}", json=upd, headers=instructor).status_code == 202
+    seed()
+    assert db.lecture.count_documents({}) == len(LECTURES)
+    assert db.lecture.count_documents({"course_id": "PY101", "youtube_id": row["youtube_id"]}) == 0
+
+
+def test_lecture_marker_seeds_once_even_concurrently(db):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from scripts.lecture_seed import seed_lectures_once
+
+    rows = [{"course_id": "Z1", "week": 1, "order": i, "title": f"L{i}", "youtube_id": "fNk_zzaMoSs"} for i in (1, 2)]
+    with ThreadPoolExecutor(4) as pool:
+        inserted = list(pool.map(lambda _: seed_lectures_once(db, "Z1", rows), range(4)))
+    assert sorted(inserted) == [0, 0, 0, 2]
+    assert db.lecture.count_documents({"course_id": "Z1"}) == 2
+    assert db.seed_markers.count_documents({"_id": "lectures:Z1"}) == 1
+    # an existing course without a marker is never re-seeded, only marked
+    db.lecture.insert_one({"course_id": "Z2", "title": "mine"})
+    assert seed_lectures_once(db, "Z2", rows) == 0 and db.lecture.count_documents({"course_id": "Z2"}) == 1
+
+
+@pytest.mark.parametrize("link", [
+    "https://evil.com/?x=youtube.com/embed/AAAAAAAAAAA",
+    "https://evil.com/watch?v=AAAAAAAAAAA",
+    "https://youtube.com.evil.com/watch?v=AAAAAAAAAAA",
+    "javascript:alert(1)//youtube.com/watch?v=AAAAAAAAAAA",
+    "ftp://www.youtube.com/watch?v=AAAAAAAAAAA",
+    "https://www.youtube.com/watch?v=short",
+    "https://www.youtube.com/playlist?v=AAAAAAAAAAA",
+])
+def test_lookalike_youtube_links_rejected(client, course, instructor, link):
+    assert client.post("/lecture/create", json=_body(youtube_url=link), headers=instructor).status_code == 422
+    with pytest.raises(ValueError):
+        extract_youtube_id(link)
+
+
+def test_update_validation_and_canonical_url(client, db, course, instructor):
+    lid = client.post("/lecture/create", json=_body(youtube_url="https://youtu.be/fNk_zzaMoSs?t=3"), headers=instructor).json()["db_entry_id"]
+    assert db.lecture.find_one({"course_id": "T101"})["youtube_url"] == "https://www.youtube.com/watch?v=fNk_zzaMoSs"
+    upd = _body()
+    upd.pop("course_id")
+    bad = client.put(f"/lecture/update/{lid}", json={**upd, "youtube_url": "https://evil.com/?x=youtube.com/embed/AAAAAAAAAAA"}, headers=instructor)
+    assert bad.status_code == 422
+    assert client.put(f"/lecture/update/{lid}", json={**upd, "youtube_url": "not a link"}, headers=instructor).status_code == 422
+    assert client.put(f"/lecture/update/{lid}", json={**upd, "youtube_url": "k7RM-ot2NWY"}, headers=instructor).status_code == 202
+    assert client.get(f"/lecture/one/{lid}", headers=instructor).json()["youtube_url"] == "https://www.youtube.com/watch?v=k7RM-ot2NWY"
+
+
+@pytest.mark.parametrize("week", [0, 13, -1])
+def test_week_out_of_range_rejected(client, course, instructor, week):
+    assert client.post("/lecture/create", json=_body(week=week), headers=instructor).status_code == 422
+    assert client.get(f"/lecture/get/T101?week={week}", headers=instructor).status_code == 422
+
+
+def test_get_lectures_for_unknown_course_is_404(client, instructor):
+    assert client.get("/lecture/get/NOPE", headers=instructor).status_code == 404
+
+
 def test_extra_courses_validate_load_and_grade(db):
     start = datetime(2026, 1, 5, tzinfo=timezone.utc)
     built = [seed_extra_courses.build(m, False, start) for m in seed_extra_courses.COURSES]

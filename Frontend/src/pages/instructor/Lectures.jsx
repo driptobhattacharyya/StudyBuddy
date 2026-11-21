@@ -126,7 +126,8 @@ function LectureEditor({ lecture, defaults, courseId, onClose, onSaved }) {
           <p className="text-sm font-medium text-fg">Preview</p>
           <div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-2">
             {vid ? (
-              <iframe title="Video preview" src={embedUrl(vid)} className="size-full" allow="encrypted-media; picture-in-picture" allowFullScreen />
+              <iframe title="Video preview" src={embedUrl(vid)} className="size-full" allow="encrypted-media; picture-in-picture" allowFullScreen
+                sandbox="allow-scripts allow-same-origin allow-presentation allow-popups" referrerPolicy="strict-origin-when-cross-origin" loading="lazy" />
             ) : (
               <p className="px-4 text-center text-xs text-muted">The video appears here once you paste a link.</p>
             )}

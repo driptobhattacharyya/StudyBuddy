@@ -29,7 +29,9 @@ function Player({ lecture }) {
         title={lecture.title}
         className="absolute inset-0 size-full"
         allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
         referrerPolicy="strict-origin-when-cross-origin"
+        loading="lazy"
         allowFullScreen
       />
     </div>
@@ -195,8 +197,8 @@ export default function StudentLectures() {
                   </TabsContent>
                   <TabsContent value="resources">
                     <ul className="space-y-2">
-                      {current.resources?.map((r) => (
-                        <li key={r.url}>
+                      {current.resources?.map((r, i) => (
+                        <li key={`${i}-${r.url}`}>
                           <a href={r.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 underline-offset-4 hover:underline dark:text-brand-300">
                             {r.label} <ExternalLink className="size-3.5" />
                           </a>
