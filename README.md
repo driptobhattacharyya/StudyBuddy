@@ -19,6 +19,7 @@ Live demo: https://studybuddy.driptobhattacharyya.com (served by a Cloudflare Wo
 
 ### Students
 * Browse courses, weekly notes and course material.
+* Watch weekly video lectures (YouTube) with lecture notes and links, mark them as watched, and jump from a week's lectures to that week's questions.
 * Answer MCQ, MSQ and numeric assignments; answers are graded on submission with per-question marks.
 * Solve coding assignments in an in-browser editor (Python, JavaScript, Java) with instructor-provided starter code. **Run** checks your code against the public tests only and saves nothing; **Submit** also runs the hidden tests, then saves and grades the attempt.
 * Personal flashcards per course.
@@ -26,6 +27,7 @@ Live demo: https://studybuddy.driptobhattacharyya.com (served by a Cloudflare Wo
 
 ### Instructors
 * Create and update courses, weekly material, notes and assignments, including coding assignments with private test cases.
+* Add, edit, reorder and remove video lectures per week by pasting any YouTube link, with a live preview, Markdown notes and resource links.
 * Gradebook with all students' marks per course, and class insights (averages per week, students at risk).
 * Generate a draft quiz, flashcards and summary from course material with AI, to edit before publishing.
 
@@ -76,6 +78,22 @@ npm run dev
 ```
 
 Open http://localhost:5173. The app calls the API at `VITE_API_URL` (default `http://localhost:8000`). When `DEMO_MODE=true` the backend offers demo sign-in for the student, instructor and admin roles (`POST /auth/demo`).
+
+### More course content (optional)
+
+The demo seed gives PY101, DS201 and ML301 a set of YouTube lectures. Three further courses can be added on top:
+CS01 Python Data Structures and Algorithms, MA01 Linear Algebra, Visually and BIO01 Foundations of Cell Biology. Together they have
+38 lectures (MIT OpenCourseWare, 3Blue1Brown, Crash Course), 16 weekly reading notes, 160 questions and 15 auto-graded Python problems.
+
+```bash
+cd Backend
+python -m scripts.seed_extra_courses --dry-run     # check the data; no database needed
+python -m scripts.seed_extra_courses --enrol-demo  # load them and enrol the demo student
+```
+
+Re-running is safe: deadlines are only set the first time, and lectures are created once, so edits made in the UI are kept.
+Candidate lectures whose video ids have not been checked yet are listed in `UNVERIFIED_LECTURES` (`scripts/seed_content.py`) and
+`PENDING_LECTURES` (`scripts/extra_courses/*.py`) and are not loaded by default.
 
 ### Docker compose (API, MongoDB and frontend)
 

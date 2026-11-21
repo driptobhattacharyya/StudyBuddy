@@ -16,6 +16,13 @@ async function loginFromLanding(page, role) {
   await page.getByRole('button', { name: `Try as ${role}` }).first().click()
 }
 
+/** Keep lecture tests hermetic: serve a blank page instead of the real YouTube embed and thumbnails. */
+async function stubYouTube(page) {
+  await page.route(/youtube(-nocookie)?\.com|ytimg\.com/, (route) =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>video</title>' }),
+  )
+}
+
 test.describe('student', () => {
   test('landing -> dashboard -> notes -> summarise', async ({ page }) => {
     const problems = guard(page)
@@ -32,6 +39,25 @@ test.describe('student', () => {
     await expect(dialog.getByText('Key points')).toBeVisible()
     await dialog.getByRole('button', { name: /Under the hood/ }).click()
     await expect(page.getByText('Prompt sent to the model')).toBeVisible()
+    expect(problems).toEqual([])
+  })
+
+  test('lectures: week tabs, watch, next, then jump to the week questions', async ({ page }) => {
+    const problems = guard(page)
+    await stubYouTube(page)
+    await loginFromLanding(page, 'student')
+    await page.getByRole('link', { name: 'Lectures' }).first().click()
+    await expect(page).toHaveURL(/\/courses\/PY101\/lectures/)
+    await expect(page.locator('iframe[title="Functions and variables"]')).toBeVisible()
+    await page.getByRole('button', { name: 'Mark as watched' }).click()
+    await expect(page.getByRole('button', { name: 'Watched' })).toBeVisible()
+    await expect(page.getByText(/1 of 3 lectures watched/)).toBeVisible()
+    await page.getByRole('button', { name: /Done, on to week 4/ }).click()
+    await expect(page.getByRole('heading', { name: 'Exceptions' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /Week 4/ })).toHaveAttribute('data-state', 'active')
+    await page.getByRole('link', { name: /Try the questions/ }).click()
+    await expect(page).toHaveURL(/\/assignments\?week=4/)
+    await expect(page.getByLabel('Filter by week')).toHaveValue('4')
     expect(problems).toEqual([])
   })
 
@@ -152,6 +178,25 @@ test('instructor creates a question', async ({ page }) => {
   await page.getByLabel('Option 1 is correct').check()
   await page.getByRole('button', { name: 'Create question' }).click()
   await expect(page.getByText('E2E: which keyword defines a function in Python?')).toBeVisible()
+  expect(problems).toEqual([])
+})
+
+test('instructor adds a lecture from a YouTube link', async ({ page }) => {
+  const problems = guard(page)
+  await stubYouTube(page)
+  await loginFromLanding(page, 'instructor')
+  await page.goto('/instructor/courses/ML301/lectures')
+  await expect(page.getByText('A gentle introduction to machine learning')).toBeVisible()
+  await page.getByRole('button', { name: 'Add lecture' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'Add a lecture' })
+  await dialog.getByLabel(/YouTube link/).fill('not a link')
+  await dialog.getByLabel(/^Title/).fill('E2E: Neural networks')
+  await dialog.getByRole('button', { name: 'Add lecture' }).click()
+  await expect(dialog.getByText("That isn't a YouTube link we recognise.")).toBeVisible()
+  await dialog.getByLabel(/YouTube link/).fill('https://youtu.be/aircAruvnKk')
+  await expect(dialog.locator('iframe[title="Video preview"]')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Add lecture' }).click()
+  await expect(page.getByText('E2E: Neural networks')).toBeVisible()
   expect(problems).toEqual([])
 })
 

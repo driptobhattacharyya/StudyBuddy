@@ -6,7 +6,7 @@
  * POST /ai/hint (server-side Socratic hint); POST /generate_assignment_questions {text} (more like this).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { differenceInHours, format, formatDistanceToNowStrict, isPast } from 'date-fns'
 import { AlertCircle, Award, CheckCircle2, ClipboardList, Clock, Lock, RefreshCw, Send, Sparkles, TrendingDown, XCircle } from 'lucide-react'
 import { loadCourseContents } from '@/lib/courseContents'
@@ -222,6 +222,12 @@ export default function StudentAssignments() {
   const [marks, setMarks] = useState({ loading: true, rows: [] })
   const [insights, setInsights] = useState(null)
   const [week, setWeek] = useLocalState(`sb:assign-week:${courseId}`, 'all')
+  const [searchParams] = useSearchParams()
+  const linkedWeek = searchParams.get('week')
+  // Links such as "Try the week 3 questions" from the lectures page open on that week.
+  useEffect(() => {
+    if (linkedWeek && /^\d+$/.test(linkedWeek)) setWeek(linkedWeek)
+  }, [linkedWeek, setWeek])
   const [type, setType] = useLocalState(`sb:assign-type:${courseId}`, 'all')
   const [answers, setAnswers] = useLocalState(`sb:answers:${courseId}`, {})
   const [results, setResults] = useLocalState(`sb:results:${courseId}`, {})
@@ -245,7 +251,12 @@ export default function StudentAssignments() {
   }, [courseId, loadMarks])
   useEffect(() => { load() }, [load])
 
-  const weeks = useMemo(() => [...new Set(state.items.map((a) => a.week))].sort((a, b) => a - b), [state.items])
+  // Include the selected week even if it has no questions yet (e.g. opened from a lecture link),
+  // so the dropdown shows it instead of silently falling back to "All weeks".
+  const weeks = useMemo(
+    () => [...new Set([...state.items.map((a) => a.week), ...(week === 'all' ? [] : [Number(week)])])].sort((a, b) => a - b),
+    [state.items, week],
+  )
   const visible = useMemo(
     () => state.items.filter((a) => (week === 'all' || a.week === Number(week)) && (type === 'all' || (type === 'graded') === isGraded(a))),
     [state.items, week, type],
@@ -302,7 +313,12 @@ export default function StudentAssignments() {
       ) : state.error ? (
         <EmptyState icon={AlertCircle} title="Could not load assignments" description={state.error} action={<Button variant="outline" onClick={load}><RefreshCw className="size-4" /> Retry</Button>} />
       ) : groups.length === 0 ? (
-        <EmptyState icon={ClipboardList} title="No assignments here" description={state.items.length ? 'Nothing matches these filters.' : 'No assignments have been published for this course yet.'} />
+        <EmptyState
+          icon={ClipboardList}
+          title={week !== 'all' && state.items.length ? `No questions for week ${week} yet` : 'No assignments here'}
+          description={state.items.length ? 'Nothing matches these filters.' : 'No assignments have been published for this course yet.'}
+          action={week !== 'all' && state.items.length > 0 && <Button variant="outline" onClick={() => setWeek('all')}>Show all weeks</Button>}
+        />
       ) : (
         <div className="space-y-8">
           {groups.map((g) => {

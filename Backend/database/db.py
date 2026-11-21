@@ -70,5 +70,6 @@ def ensure_indexes() -> None:
         database.marks.create_index([("user_id", 1), ("course_id", 1)])
         database.rag_chunks.create_index([("course_id", 1), ("week", 1)])
         database.rag_chunks.create_index("source_id")
+        database.lecture.create_index([("course_id", 1), ("week", 1), ("order", 1)])
     except Exception:  # noqa: BLE001
         log.exception("Could not create database indexes")

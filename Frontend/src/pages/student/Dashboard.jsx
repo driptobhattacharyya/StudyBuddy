@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { BookOpen, CalendarClock, ClipboardList, Code2, Layers, MessagesSquare, RefreshCw, Sparkles } from 'lucide-react'
+import { BookOpen, CalendarClock, ClipboardList, Code2, Layers, MessagesSquare, RefreshCw, Sparkles, PlayCircle } from 'lucide-react'
 import { format, formatDistanceToNowStrict } from 'date-fns'
 import { useAuth } from '@/context/AuthContext'
 import { useCourses } from '@/context/CoursesContext'
@@ -65,6 +65,7 @@ export default function StudentDashboard() {
   const featured = myCourses[0]?.course_id
 
   const links = (id) => [
+    { label: 'Lectures', icon: PlayCircle, to: `/app/courses/${id}/lectures` },
     { label: 'Notes', icon: BookOpen, to: `/app/courses/${id}/notes` },
     { label: 'Assignments', icon: ClipboardList, to: `/app/courses/${id}/assignments` },
     { label: 'Code', icon: Code2, to: `/app/courses/${id}/code` },

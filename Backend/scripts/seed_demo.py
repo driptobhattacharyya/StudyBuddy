@@ -17,7 +17,7 @@ from core.config import get_settings
 from core.logging import configure_logging
 from core.security import ADMIN, INSTRUCTOR, STUDENT, create_user, ensure_demo_user
 from database.db import db, ensure_indexes
-from scripts.seed_content import CODING, COURSES, FLASHCARDS, STARTER_CODE
+from scripts.seed_content import CODING, COURSES, FLASHCARDS, LECTURES, STARTER_CODE
 from utils.grading import submit_and_grade
 
 log = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ def _answer(a: dict, correct: bool) -> list:
 def reset_demo_data() -> None:
     ids = [c["course_id"] for c in COURSES]
     qids = [d["_id"] for coll in (db.assignment, db.coding_assignment) for d in coll.find({"course_id": {"$in": ids}}, {"_id": 1})]
-    for name in ("course_material", "assignment", "coding_assignment", "marks", "assignment_mark", "rag_chunks", "notes", "flashcard"):
+    for name in ("course_material", "lecture", "assignment", "coding_assignment", "marks", "assignment_mark", "rag_chunks", "notes", "flashcard"):
         db[name].delete_many({"course_id": {"$in": ids}})
     db.submission.delete_many({"assgn_id": {"$in": qids}})
     db.course.delete_many({"course_id": {"$in": ids}})
@@ -73,7 +73,7 @@ def seed(reset: bool = False) -> dict[str, Any]:
     if reset:
         reset_demo_data()
     now = _now()
-    counts = {"courses": 0, "materials": 0, "assignments": 0, "coding_assignments": 0}
+    counts = {"courses": 0, "materials": 0, "lectures": 0, "assignments": 0, "coding_assignments": 0}
 
     for course in COURSES:
         cid = course["course_id"]
@@ -99,6 +99,15 @@ def seed(reset: bool = False) -> dict[str, Any]:
                     "course_id": cid, "week": week, "assgn_type": a_type, "question": q, "q_type": q_type,
                     "options": options, "answers": answers, "deadline": now + timedelta(days=days)})
                 counts["assignments"] += 1
+
+    # Created once, matched on the video: after that a lecture belongs to the instructor, and edits,
+    # moves or new lectures made in the UI survive later runs (``--reset`` starts over).
+    for cid, week, order, title, video, source, description, notes in LECTURES:
+        db.lecture.update_one({"course_id": cid, "youtube_id": video}, {"$setOnInsert": {
+            "course_id": cid, "week": week, "order": order, "title": title, "youtube_id": video,
+            "youtube_url": f"https://www.youtube.com/watch?v={video}", "source": source,
+            "description": description, "notes": notes, "duration": None, "resources": []}}, upsert=True)
+        counts["lectures"] += 1
 
     for c in CODING:
         tests = lambda pairs: [{"input": i, "output": o} for i, o in pairs]  # noqa: E731

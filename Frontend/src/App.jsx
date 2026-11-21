@@ -10,6 +10,7 @@ const AuthCallback = lz(() => import('@/pages/auth/AuthCallback'))
 const NotFound = lz(() => import('@/pages/NotFound'))
 
 const StudentDashboard = lz(() => import('@/pages/student/Dashboard'))
+const StudentLectures = lz(() => import('@/pages/student/Lectures'))
 const StudentNotes = lz(() => import('@/pages/student/Notes'))
 const StudentAssignments = lz(() => import('@/pages/student/Assignments'))
 const StudentCodeList = lz(() => import('@/pages/student/CodeList'))
@@ -18,6 +19,7 @@ const StudentFlashcards = lz(() => import('@/pages/student/Flashcards'))
 const StudentChat = lz(() => import('@/pages/student/Chat'))
 
 const InstructorDashboard = lz(() => import('@/pages/instructor/Dashboard'))
+const InstructorLectures = lz(() => import('@/pages/instructor/Lectures'))
 const InstructorNotes = lz(() => import('@/pages/instructor/Notes'))
 const InstructorAssignments = lz(() => import('@/pages/instructor/Assignments'))
 const InstructorCode = lz(() => import('@/pages/instructor/Code'))
@@ -38,6 +40,7 @@ export default function App() {
       <Route path="/app" element={<ProtectedRoute role="student" />}>
         <Route element={<AppShell shell="student" />}>
           <Route index element={<StudentDashboard />} />
+          <Route path="courses/:courseId/lectures" element={<StudentLectures />} />
           <Route path="courses/:courseId/notes" element={<StudentNotes />} />
           <Route path="courses/:courseId/assignments" element={<StudentAssignments />} />
           <Route path="courses/:courseId/code" element={<StudentCodeList />} />
@@ -51,6 +54,7 @@ export default function App() {
       <Route path="/instructor" element={<ProtectedRoute role={['instructor', 'admin']} />}>
         <Route element={<AppShell shell="instructor" />}>
           <Route index element={<InstructorDashboard />} />
+          <Route path="courses/:courseId/lectures" element={<InstructorLectures />} />
           <Route path="courses/:courseId/notes" element={<InstructorNotes />} />
           <Route path="courses/:courseId/assignments" element={<InstructorAssignments />} />
           <Route path="courses/:courseId/code" element={<InstructorCode />} />

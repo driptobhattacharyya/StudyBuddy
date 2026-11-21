@@ -20,6 +20,7 @@ from routes.coding_assignments import coding_assignment
 from routes.course import course
 from routes.course_material import course_material
 from routes.flashcard import fc
+from routes.lecture import lecture
 from routes.notes import notes
 from routes.user import user
 from utils.response import responses
@@ -40,6 +41,7 @@ TAGS = [
     {"name": "Course", "description": "Courses and course content"},
     {"name": "Course Material", "description": "Weekly material (instructor managed)"},
     {"name": "Notes", "description": "Instructor notes"},
+    {"name": "Lecture", "description": "Weekly YouTube video lectures (instructor managed)"},
     {"name": "Assignment", "description": "MCQ / MSQ / numeric questions"},
     {"name": "Coding Assignment", "description": "Coding questions run in a sandbox"},
     {"name": "Flashcard", "description": "Personal flashcards"},
@@ -96,7 +98,7 @@ def create_app() -> FastAPI:
         log.exception("Unhandled error on %s %s", request.method, request.url.path)
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
-    for router in (auth, oauth, user, course, course_material, notes, assgn, coding_assignment, fc, ai,
+    for router in (auth, oauth, user, course, course_material, notes, lecture, assgn, coding_assignment, fc, ai,
                    admin, ws_router):
         app.include_router(router)
 

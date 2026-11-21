@@ -414,3 +414,114 @@ FLASHCARDS = [
     ("DS201", 1, "What does amortised O(1) append mean?", "Occasional resizes cost O(n), but spread over many appends the average cost per append is constant."),
     ("ML301", 4, "Precision vs recall", "Precision = TP/(TP+FP): how many predicted positives were right. Recall = TP/(TP+FN): how many real positives were found."),
 ]
+
+
+# ---- Video lectures -------------------------------------------------------------------------------
+# (course_id, week, order, title, youtube_id, source, description, markdown notes)
+# Every id below was checked against its published title. Candidates that could not be checked are
+# listed in UNVERIFIED_LECTURES at the bottom and are not seeded.
+_MIT_F11 = "MIT OpenCourseWare (6.006, Fall 2011)"
+_MIT_S20 = "MIT OpenCourseWare (6.006, Spring 2020)"
+LECTURES = [
+    # PY101 - Python Programming (Harvard CS50P)
+    ("PY101", 1, 1, "Functions and variables", "JP7ITIXGpHk", "Harvard CS50P",
+     "The first CS50P lecture: writing and running Python, calling functions, storing values in variables and defining your own functions.",
+     """- `print()` and `input()` are functions; arguments go in the parentheses.
+- `input()` always returns a `str`; convert with `int()` or `float()`.
+- Define functions with `def`; `return` hands a value back to the caller.
+- Keep functions short and give them names that say what they do."""),
+    ("PY101", 4, 1, "Exceptions", "LW7g1169v7w", "Harvard CS50P",
+     "What happens when things go wrong: syntax errors versus runtime errors, and handling the latter with try / except / else.",
+     """- A `SyntaxError` must be fixed in the code; runtime errors such as `ValueError` can be handled.
+- Put only the risky line inside `try`, and catch the specific exception you expect.
+- `else` runs when no exception was raised; `pass` deliberately does nothing.
+- A loop around `try` is the standard way to keep asking until the input is valid."""),
+    ("PY101", 4, 2, "Object-oriented programming", "e4fwY9ZsxPw", "Harvard CS50P",
+     "Classes, objects, `__init__`, instance methods and properties: how to model your own types in Python.",
+     """- A class is a blueprint; each object (instance) has its own attributes.
+- `__init__` sets up a new object; `self` is the object being worked on.
+- Raise `ValueError` in `__init__` to reject invalid state early.
+- `__str__` controls how `print(obj)` looks; `@property` adds validated attributes."""),
+    # DS201 - Data Structures (MIT 6.006, CS50)
+    ("DS201", 1, 1, "Algorithmic thinking and peak finding", "HtSuA80QTyo", _MIT_F11,
+     "Why we analyse algorithms at all, shown with a small problem: finding a peak in an array in logarithmic rather than linear time.",
+     """- Asymptotic notation (O, Θ, Ω) compares algorithms independently of the machine.
+- Linear scan for a peak is Θ(n); binary-search style halving gives Θ(log n).
+- Always argue correctness before optimising."""),
+    ("DS201", 1, 2, "Data structures and dynamic arrays", "CHhwJjR0mZA", _MIT_S20,
+     "Interfaces versus data structures, static arrays, linked lists, and how dynamic arrays (Python lists) get amortised O(1) appends.",
+     """- An *interface* says what operations exist; a *data structure* says how they are implemented.
+- Static arrays give O(1) indexing but fixed size.
+- Dynamic arrays over-allocate and double when full, so `append` is O(1) amortised.
+- Inserting at the front of an array is O(n)."""),
+    ("DS201", 2, 1, "Data structures: queues, stacks and linked lists", "aV8LlSmd1E8", "Harvard CS50x 2025",
+     "CS50's data structures lecture: abstract data types, queues and stacks, linked lists built from nodes and pointers, then trees, hash tables and tries.",
+     """- Stack = last in, first out (`push` / `pop`); queue = first in, first out (`enqueue` / `dequeue`).
+- A linked list trades O(1) insertion at the head for O(n) access by index.
+- Each node stores a value and a pointer to the next node.
+- Choosing a structure is choosing which operations are cheap."""),
+    ("DS201", 3, 1, "Hashing", "Nu8YGneFCWE", _MIT_S20,
+     "How hash tables give expected constant-time lookups: hash functions, collisions, chaining and resizing.",
+     """- A hash function maps keys to bucket indices; collisions are unavoidable.
+- Chaining keeps a short list per bucket; expected chain length is the load factor n/m.
+- Resize (rehash into a bigger table) when the load factor grows.
+- Python `dict` and `set` are hash tables."""),
+    ("DS201", 3, 2, "Binary search trees", "9Jry5-82I68", _MIT_F11,
+     "Binary search trees from a scheduling problem: insert, find and in-order traversal, all in time proportional to the height.",
+     """- BST invariant: left subtree < node < right subtree.
+- Search, insert and min/max cost O(h).
+- In-order traversal visits keys in sorted order.
+- Without balancing, h can reach n (insert sorted data and see)."""),
+    ("DS201", 4, 1, "Insertion sort and merge sort", "Kg4bqzAqRBM", _MIT_F11,
+     "Two classic sorts side by side, and how a recursion tree shows why merge sort is n log n.",
+     """- Insertion sort: Θ(n²) worst case, but fast on nearly sorted input and in place.
+- Merge sort: T(n) = 2T(n/2) + Θ(n) = Θ(n log n), with Θ(n) extra space.
+- Both are stable."""),
+    ("DS201", 4, 2, "Counting sort, radix sort and lower bounds", "Nz1KZXbghj8", _MIT_F11,
+     "Why comparison sorting cannot beat n log n, and how counting and radix sort get around it by not comparing.",
+     """- Any comparison sort needs Ω(n log n) comparisons (decision-tree argument).
+- Counting sort is O(n + k) for integer keys below k.
+- Radix sort applies a stable sort digit by digit, least significant first.
+- Searching a sorted array also has an Ω(log n) comparison lower bound."""),
+    # ML301 - Machine Learning Basics (StatQuest)
+    ("ML301", 1, 1, "A gentle introduction to machine learning", "Gv9_4yMHFhI", "StatQuest with Josh Starmer",
+     "The big ideas without the jargon: what it means to train a model, why we test on data the model has not seen, and the bias-variance trade-off in a sentence.",
+     """- Machine learning = making predictions or classifications from data.
+- Always evaluate on **testing data**, not the data used for training.
+- A model that fits training data perfectly can still predict badly."""),
+    ("ML301", 2, 1, "The essence of linear regression", "aFDOzpTeg0s", "StatQuest with Josh Starmer",
+     "Fitting a line by minimising squared residuals, and how to judge whether the fit is any good.",
+     """- Residual = observed − predicted; least squares minimises the sum of squared residuals.
+- R² is the fraction of the variation explained by the model.
+- A p-value says whether the relationship could plausibly be chance."""),
+    ("ML301", 2, 2, "Gradient descent, step by step", "sDv4f4s2SB8", "StatQuest with Josh Starmer",
+     "Optimising a model one small step at a time: derivatives, step size, the learning rate and when to stop.",
+     """- The derivative of the loss tells you which way is downhill.
+- Step size = slope × learning rate; steps shrink as you approach the minimum.
+- Stop when steps become tiny or after a maximum number of iterations.
+- Stochastic gradient descent uses a random subset of data per step."""),
+    ("ML301", 3, 1, "Logistic regression", "yIYKR4sgzI8", "StatQuest with Josh Starmer",
+     "Predicting a yes/no outcome with an S-shaped curve, and how it differs from linear regression.",
+     """- Output is a probability between 0 and 1 (the sigmoid / logistic curve).
+- Fitted with maximum likelihood, not least squares.
+- Threshold the probability (often 0.5) to get a class."""),
+    ("ML301", 3, 2, "Decision and classification trees", "_L39rN6gz7Y", "StatQuest with Josh Starmer",
+     "How a tree chooses its questions: impurity, Gini, and how splits on numeric features are picked.",
+     """- Each split is chosen to reduce impurity the most (Gini impurity or entropy).
+- Leaves give the predicted class.
+- Deep trees overfit; limit depth or require a minimum number of samples per leaf."""),
+    ("ML301", 4, 1, "Bias and variance", "EuBBz3bI-aA", "StatQuest with Josh Starmer",
+     "Why a model can fit training data well and still predict badly: bias, variance, and the trade-off between them.",
+     """- Bias: error from a model too simple to capture the pattern (underfitting).
+- Variance: error from sensitivity to the particular training set (overfitting).
+- Regularisation, bagging and boosting are ways to balance the two."""),
+]
+
+# Candidate videos that fit the course but whose ids have not been checked yet.
+# (course_id, week, title, what to look for)
+UNVERIFIED_LECTURES = [
+    ("PY101", 2, "Conditionals", "Harvard CS50P Lecture 1 - Conditionals (official CS50 channel)"),
+    ("PY101", 2, "Loops", "Harvard CS50P Lecture 2 - Loops (official CS50 channel)"),
+    ("PY101", 3, "Lists and dictionaries", "Harvard CS50P Lecture 2 - Loops covers lists and dicts; or a short on comprehensions"),
+    ("ML301", 4, "Cross validation", "StatQuest - Machine Learning Fundamentals: Cross Validation"),
+]
